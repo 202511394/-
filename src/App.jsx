@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import Auth from './Auth';
 import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Globe 
+  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Globe, Trophy, Award 
 } from 'lucide-react';
 
 export default function App() {
@@ -22,8 +22,8 @@ export default function App() {
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 익명 글로벌 커뮤니티 통계 상태
-  const [globalStats, setGlobalStats] = useState({ total_transactions: 0, total_amount: 0, total_users: 0 });
+  // 커뮤니티 랭킹 상태
+  const [rankingList, setRankingList] = useState([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -41,7 +41,7 @@ export default function App() {
   useEffect(() => {
     if (session) {
       fetchTransactions();
-      fetchGlobalStats();
+      fetchCommunityRanking();
     }
   }, [session]);
 
@@ -57,10 +57,29 @@ export default function App() {
     }
   };
 
-  const fetchGlobalStats = async () => {
-    const { data, error } = await supabase.rpc('get_global_stats');
-    if (!error && data && data.length > 0) {
-      setGlobalStats(data[0]);
+  // 무작위 닉네임 생성 및 랭킹 데이터 불러오기
+  const fetchCommunityRanking = async () => {
+    const { data, error } = await supabase.rpc('get_community_ranking');
+    if (!error && data) {
+      // 유저 UUID를 기반으로 항상 고유하고 재미있는 무작위 닉네임 부여
+      const adjectives = ['절약하는', '소비요정', '티클모아', '플렉스하는', '알뜰살뜰', '고민많은', '부자될', '현명한'];
+      const nouns = ['쿼카', '판다', '고양이', '사자', '햄스터', '부엉이', '너구리', '토끼'];
+
+      const mapped = data.map((item, index) => {
+        // 간단하게 유저 ID 문자열을 활용해 고정된 닉네임 조합 만들기
+        const charCodeSum = item.user_id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const adj = adjectives[charCodeSum % adjectives.length];
+        const noun = nouns[(charCodeSum >> 1) % nouns.length];
+        
+        return {
+          rank: index + 1,
+          nickname: `${adj} ${noun} #${index + 1}`,
+          totalExpense: Number(item.total_expense),
+          isMe: item.user_id === session.user.id
+        };
+      });
+
+      setRankingList(mapped);
     }
   };
 
@@ -101,7 +120,7 @@ export default function App() {
       setTransactions([data[0], ...transactions]);
       setAmount('');
       setDescription('');
-      fetchGlobalStats();
+      fetchCommunityRanking();
     }
   };
 
@@ -115,7 +134,7 @@ export default function App() {
       alert('삭제 중 오류가 발생했습니다: ' + error.message);
     } else {
       setTransactions(transactions.filter(item => item.id !== id));
-      fetchGlobalStats();
+      fetchCommunityRanking();
     }
   };
 
@@ -166,15 +185,6 @@ export default function App() {
 
   const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
-  const avgGlobalExpense = globalStats.total_users > 0 
-    ? Math.round(Number(globalStats.total_amount) / Number(globalStats.total_users)) 
-    : 0;
-
-  const comparisonData = [
-    { name: '나의 총 지출', amount: totalExpense },
-    { name: '커뮤니티 1인당 평균', amount: avgGlobalExpense }
-  ];
-
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 sm:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -210,27 +220,45 @@ export default function App() {
           </div>
         </header>
 
-        {/* 🌐 실시간 익명 커뮤니티 통계 카드 */}
-        <div className="bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-slate-800/60 backdrop-blur-md p-5 rounded-3xl border border-indigo-500/20 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/30">
-              <Globe size={24} />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-200">실시간 익명 사용자 커뮤니티 통계</h3>
-              <p className="text-xs text-slate-400">총 {globalStats.total_users}명의 유저가 Neon Ledger와 함께하고 있습니다.</p>
+        {/* 🏆 커뮤니티 지출 랭킹 리더보드 */}
+        <div className="bg-gradient-to-r from-slate-800/80 via-indigo-950/40 to-slate-800/80 backdrop-blur-md p-6 rounded-3xl border border-indigo-500/20 shadow-lg space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/30">
+                <Trophy size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">익명 커뮤니티 지출 랭킹</h3>
+                <p className="text-xs text-slate-400">Neon Ledger 사용자들의 실시간 지출 순위입니다. (나의 순위를 확인해보세요!)</p>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-6 text-right w-full sm:w-auto justify-around sm:justify-end bg-slate-900/40 px-5 py-3 rounded-2xl border border-slate-700/40">
-            <div>
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">전체 기록 건수</span>
-              <span className="text-base font-black text-indigo-400">{Number(globalStats.total_transactions).toLocaleString()} 건</span>
-            </div>
-            <div className="w-[1px] h-8 bg-slate-700"></div>
-            <div>
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block">전체 누적 금액</span>
-              <span className="text-base font-black text-violet-400">{Number(globalStats.total_amount).toLocaleString()} 원</span>
-            </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {rankingList.length > 0 ? (
+              rankingList.map((user) => (
+                <div 
+                  key={user.rank} 
+                  className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${user.isMe ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-500/10' : 'bg-slate-900/50 border-slate-700/50'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black ${user.rank === 1 ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : user.rank === 2 ? 'bg-slate-300 text-slate-900' : user.rank === 3 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                      {user.rank}
+                    </span>
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block flex items-center gap-1.5">
+                        {user.nickname}
+                        {user.isMe && <span className="text-[10px] bg-indigo-500 text-white px-1.5 py-0.5 rounded-md font-semibold">나</span>}
+                      </span>
+                      <span className="text-[10px] text-slate-400">총 지출 금액</span>
+                    </div>
+                  </div>
+                  <span className="text-sm font-black text-rose-400">-{user.totalExpense.toLocaleString()}원</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-slate-500 col-span-full text-center py-4">등록된 커뮤니티 랭킹 데이터가 없습니다.</p>
+            )}
           </div>
         </div>
 
@@ -257,7 +285,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 메인 콘텐츠 영역 (입력 및 차트) */}
+        {/* 메인 콘텐츠 영역 (입력 및 원형 차트) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-1">
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -343,54 +371,36 @@ export default function App() {
 
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white mb-1">지출 및 커뮤니티 비교 분석</h2>
-              <p className="text-xs text-slate-400 mb-4">나의 지출과 전체 사용자 평균 지출을 비교해 보세요.</p>
+              <h2 className="text-lg font-bold text-white mb-1">카테고리별 지출 비중</h2>
+              <p className="text-xs text-slate-400 mb-4">나의 지출 분포를 원형 차트로 확인해보세요.</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-              {/* 원형 차트 (카테고리별 지출) */}
-              <div className="h-60 w-full flex flex-col items-center">
-                <span className="text-xs font-bold text-slate-400 mb-2">카테고리별 지출 비중</span>
-                {chartData.length > 0 ? (
-                  <div className="w-full h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={chartData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={75}
-                          paddingAngle={4}
-                          dataKey="value"
-                        >
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }} formatter={(v) => `${Number(v).toLocaleString()}원`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500 flex items-center justify-center h-full">지출 데이터 없음</p>
-                )}
-              </div>
-
-              {/* 막대 차트 (나 vs 커뮤니티 평균 비교) */}
-              <div className="h-60 w-full flex flex-col items-center">
-                <span className="text-xs font-bold text-slate-400 mb-2">나 vs 커뮤니티 평균 지출 비교</span>
+            <div className="h-64 w-full flex items-center justify-center">
+              {chartData.length > 0 ? (
                 <div className="w-full h-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={comparisonData}>
-                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(v) => `${v >= 10000 ? v/10000 + '만' : v}`} />
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={65}
+                        outerRadius={90}
+                        paddingAngle={6}
+                        dataKey="value"
+                      >
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
                       <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }} formatter={(v) => `${Number(v).toLocaleString()}원`} />
-                      <Bar dataKey="amount" fill="#6366f1" radius={[8, 8, 0, 0]} />
-                    </BarChart>
+                      <Legend />
+                    </PieChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
+              ) : (
+                <p className="text-xs text-slate-500">표시할 지출 데이터가 없습니다.</p>
+              )}
             </div>
           </div>
         </div>
