@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import Auth from './Auth';
 import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis 
 } from 'recharts';
 import { 
   Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Globe 
@@ -23,9 +23,8 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
 
   // 익명 글로벌 커뮤니티 통계 상태
-  const [globalStats, setGlobalStats] = useState({ total_transactions: 0, total_amount: 0 });
+  const [globalStats, setGlobalStats] = useState({ total_transactions: 0, total_amount: 0, total_users: 0 });
 
-  // 1. 로그인 세션 확인 및 감지
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -39,7 +38,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. 로그인된 사용자의 거래 내역 및 익명 통계 불러오기
   useEffect(() => {
     if (session) {
       fetchTransactions();
@@ -54,14 +52,11 @@ export default function App() {
       .eq('user_id', session.user.id)
       .order('date', { ascending: false });
 
-    if (error) {
-      console.error('데이터를 불러오는 중 에러 발생:', error.message);
-    } else {
+    if (!error) {
       setTransactions(data || []);
     }
   };
 
-  // 익명 글로벌 통계 불러오기
   const fetchGlobalStats = async () => {
     const { data, error } = await supabase.rpc('get_global_stats');
     if (!error && data && data.length > 0) {
@@ -79,7 +74,6 @@ export default function App() {
     setCategory(categories[newType][0]);
   };
 
-  // 3. 내역 추가 (Supabase 저장)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount || isNaN(amount) || Number(amount) <= 0) {
@@ -107,11 +101,10 @@ export default function App() {
       setTransactions([data[0], ...transactions]);
       setAmount('');
       setDescription('');
-      fetchGlobalStats(); // 통계 갱신
+      fetchGlobalStats();
     }
   };
 
-  // 4. 내역 삭제 (Supabase 삭제)
   const handleDelete = async (id) => {
     const { error } = await supabase
       .from('transactions')
@@ -122,7 +115,7 @@ export default function App() {
       alert('삭제 중 오류가 발생했습니다: ' + error.message);
     } else {
       setTransactions(transactions.filter(item => item.id !== id));
-      fetchGlobalStats(); // 통계 갱신
+      fetchGlobalStats();
     }
   };
 
@@ -173,6 +166,15 @@ export default function App() {
 
   const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
+  const avgGlobalExpense = globalStats.total_users > 0 
+    ? Math.round(Number(globalStats.total_amount) / Number(globalStats.total_users)) 
+    : 0;
+
+  const comparisonData = [
+    { name: '나의 총 지출', amount: totalExpense },
+    { name: '커뮤니티 1인당 평균', amount: avgGlobalExpense }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 sm:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -216,7 +218,7 @@ export default function App() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-200">실시간 익명 사용자 커뮤니티 통계</h3>
-              <p className="text-xs text-slate-400">Neon Ledger를 이용하는 모든 사용자들이 함께 기록 중인 데이터입니다.</p>
+              <p className="text-xs text-slate-400">총 {globalStats.total_users}명의 유저가 Neon Ledger와 함께하고 있습니다.</p>
             </div>
           </div>
           <div className="flex items-center gap-6 text-right w-full sm:w-auto justify-around sm:justify-end bg-slate-900/40 px-5 py-3 rounded-2xl border border-slate-700/40">
@@ -234,8 +236,7 @@ export default function App() {
 
         {/* 요약 카드 그리드 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
+          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 수입</p>
               <p className="text-2xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
@@ -245,8 +246,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/10 rounded-full blur-xl"></div>
+          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 지출</p>
               <p className="text-2xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
@@ -334,7 +334,7 @@ export default function App() {
 
               <button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg shadow-indigo-500/25 active:scale-[0.99]"
+                className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg shadow-indigo-500/25"
               >
                 기록 추가하기
               </button>
@@ -343,37 +343,54 @@ export default function App() {
 
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white mb-1">카테고리별 지출 분석</h2>
-              <p className="text-xs text-slate-400 mb-4">어디에 가장 많이 지출했는지 확인해보세요.</p>
+              <h2 className="text-lg font-bold text-white mb-1">지출 및 커뮤니티 비교 분석</h2>
+              <p className="text-xs text-slate-400 mb-4">나의 지출과 전체 사용자 평균 지출을 비교해 보세요.</p>
             </div>
             
-            <div className="h-64 w-full flex items-center justify-center">
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={chartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={90}
-                      paddingAngle={6}
-                      dataKey="value"
-                    >
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(15, 23, 42, 0.5)" strokeWidth={2} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }}
-                      formatter={(value) => `${Number(value).toLocaleString()} 원`} 
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-sm text-slate-500">표시할 지출 데이터가 없습니다.</p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              {/* 원형 차트 (카테고리별 지출) */}
+              <div className="h-60 w-full flex flex-col items-center">
+                <span className="text-xs font-bold text-slate-400 mb-2">카테고리별 지출 비중</span>
+                {chartData.length > 0 ? (
+                  <div className="w-full h-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={chartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={75}
+                          paddingAngle={4}
+                          dataKey="value"
+                        >
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }} formatter={(v) => `${Number(v).toLocaleString()}원`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 flex items-center justify-center h-full">지출 데이터 없음</p>
+                )}
+              </div>
+
+              {/* 막대 차트 (나 vs 커뮤니티 평균 비교) */}
+              <div className="h-60 w-full flex flex-col items-center">
+                <span className="text-xs font-bold text-slate-400 mb-2">나 vs 커뮤니티 평균 지출 비교</span>
+                <div className="w-full h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={comparisonData}>
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(v) => `${v >= 10000 ? v/10000 + '만' : v}`} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }} formatter={(v) => `${Number(v).toLocaleString()}원`} />
+                      <Bar dataKey="amount" fill="#6366f1" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -387,19 +404,19 @@ export default function App() {
               <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-700/60">
                 <button 
                   onClick={() => setFilterType('all')}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'all' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   전체
                 </button>
                 <button 
                   onClick={() => setFilterType('income')}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'income' ? 'bg-emerald-500 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'income' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   수입
                 </button>
                 <button 
                   onClick={() => setFilterType('expense')}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'expense' ? 'bg-rose-500 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'expense' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white'}`}
                 >
                   지출
                 </button>
@@ -412,7 +429,7 @@ export default function App() {
                   placeholder="내역 검색" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
                 />
               </div>
             </div>
@@ -449,7 +466,6 @@ export default function App() {
                         <button 
                           onClick={() => handleDelete(item.id)}
                           className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                          title="삭제"
                         >
                           <Trash2 size={16} />
                         </button>
