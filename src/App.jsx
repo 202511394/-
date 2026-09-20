@@ -134,14 +134,19 @@ export default function App() {
 
     try {
       const { error } = await supabase.rpc('delete_user_account');
-      if (error) throw error;
+      
+      if (error) {
+        console.error("Supabase RPC 에러 상세:", error);
+        alert(`탈퇴 실패: ${error.message || JSON.stringify(error)}`);
+        return;
+      }
 
       await supabase.auth.signOut();
       alert("회원탈퇴가 정상적으로 처리되었습니다.");
       window.location.reload();
     } catch (err) {
-      console.error("탈퇴 중 에러 발생:", err.message);
-      alert("탈퇴 처리에 실패했습니다. 다시 시도해 주세요.");
+      console.error("예외 발생:", err);
+      alert("탈퇴 처리 중 예외가 발생했습니다: " + (err.message || err));
     }
   };
 
