@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, Repeat 
+  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, Repeat, X 
 } from 'lucide-react';
 
 export default function App() {
@@ -22,12 +22,13 @@ export default function App() {
   const [paymentDay, setPaymentDay] = useState('25');
   const [description, setDescription] = useState('');
 
-  const [filterType, setFilterType] = useState('all'); // 'all', 'income', 'expense'
+  // 팝업 관련 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalFilterType, setModalFilterType] = useState('all'); // 'all', 'income', 'expense'
   const [searchTerm, setSearchTerm] = useState('');
 
   const [rankingList, setRankingList] = useState([]);
 
-  // 고정지출 목록 섹션 참조용 ref
   const fixedSectionRef = useRef(null);
 
   useEffect(() => {
@@ -212,7 +213,7 @@ export default function App() {
   const totalBalance = totalIncome - (totalExpense + totalFixedExpense);
 
   const filteredTransactions = transactions.filter(item => {
-    const matchesType = filterType === 'all' || item.type === filterType;
+    const matchesType = modalFilterType === 'all' || item.type === modalFilterType;
     const matchesSearch = item.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.category.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesType && matchesSearch;
@@ -309,15 +310,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* 요약 카드 그리드 (클릭 시 해당 내역 필터링 또는 고정지출 섹션으로 이동) */}
+        {/* 요약 카드 그리드 (클릭 시 팝업 열기 또는 고정지출 이동) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button 
-            onClick={() => setFilterType('income')}
-            className={`bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer ${filterType === 'income' ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30' : 'border-slate-700/50 hover:border-slate-500'}`}
+            onClick={() => {
+              setModalFilterType('income');
+              setIsModalOpen(true);
+            }}
+            className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 hover:border-emerald-500 shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer"
           >
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                나의 총 수입 <span className="text-[10px] text-emerald-400 font-bold">(클릭시 보기)</span>
+                나의 총 수입 <span className="text-[10px] text-emerald-400 font-bold">(팝업 보기)</span>
               </p>
               <p className="text-xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
             </div>
@@ -327,12 +331,15 @@ export default function App() {
           </button>
 
           <button 
-            onClick={() => setFilterType('expense')}
-            className={`bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer ${filterType === 'expense' ? 'border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/30' : 'border-slate-700/50 hover:border-slate-500'}`}
+            onClick={() => {
+              setModalFilterType('expense');
+              setIsModalOpen(true);
+            }}
+            className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 hover:border-rose-500 shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer"
           >
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                변동 지출 <span className="text-[10px] text-rose-400 font-bold">(클릭시 보기)</span>
+                변동 지출 <span className="text-[10px] text-rose-400 font-bold">(팝업 보기)</span>
               </p>
               <p className="text-xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
             </div>
@@ -471,9 +478,21 @@ export default function App() {
           </div>
 
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white mb-1">카테고리별 지출 비중</h2>
-              <p className="text-xs text-slate-400 mb-4">변동 지출의 카테고리별 분포를 원형 차트로 확인해보세요.</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-white mb-1">카테고리별 지출 비중</h2>
+                <p className="text-xs text-slate-400 mb-4">변동 지출의 카테고리별 분포를 원형 차트로 확인해보세요.</p>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  setModalFilterType('all');
+                  setIsModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 rounded-2xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              >
+                <Wallet size={16} /> 전체 거래 내역 팝업 열기
+              </button>
             </div>
             
             <div className="h-64 w-full flex items-center justify-center">
@@ -506,7 +525,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 고정지출 목록 영역 (참조 ref 설정) */}
+        {/* 고정지출 목록 영역 */}
         <div ref={fixedSectionRef} className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -540,96 +559,131 @@ export default function App() {
           )}
         </div>
 
-        {/* 내역 리스트 영역 */}
-        <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h2 className="text-lg font-bold text-white">상세 거래 내역</h2>
+      </div>
+
+      {/* 상세 거래 내역 모달 팝업창 */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-700/80 w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
             
-            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-              <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-700/60">
+            {/* 팝업 헤더 */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/90">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
+                  <Wallet size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">상세 거래 내역</h3>
+                  <p className="text-xs text-slate-400">등록된 수입 및 지출 내역을 관리할 수 있습니다.</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-2xl transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 필터 및 검색 바 */}
+            <div className="p-6 border-b border-slate-800 bg-slate-900/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60 w-full sm:w-auto">
                 <button 
-                  onClick={() => setFilterType('all')}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                  onClick={() => setModalFilterType('all')}
+                  className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all ${modalFilterType === 'all' ? 'bg-slate-700 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
-                  전체
+                  전체보기
                 </button>
                 <button 
-                  onClick={() => setFilterType('income')}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'income' ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                  onClick={() => setModalFilterType('income')}
+                  className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all ${modalFilterType === 'income' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
-                  수입
+                  수입 내역
                 </button>
                 <button 
-                  onClick={() => setFilterType('expense')}
-                  className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all ${filterType === 'expense' ? 'bg-rose-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                  onClick={() => setModalFilterType('expense')}
+                  className={`flex-1 sm:flex-none px-4 py-2 text-xs font-bold rounded-xl transition-all ${modalFilterType === 'expense' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
-                  지출
+                  지출 내역
                 </button>
               </div>
 
-              <div className="relative flex-1 sm:w-60">
-                <Search size={16} className="absolute left-3.5 top-3 text-slate-500" />
+              <div className="relative w-full sm:w-72">
+                <Search size={16} className="absolute left-3.5 top-3.5 text-slate-500" />
                 <input 
                   type="text" 
-                  placeholder="내역 검색" 
+                  placeholder="내용 또는 카테고리 검색" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-800/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
                 />
               </div>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-700/60 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4">날짜</th>
-                  <th className="py-3 px-4">유형</th>
-                  <th className="py-3 px-4">카테고리</th>
-                  <th className="py-3 px-4">메모</th>
-                  <th className="py-3 px-4 text-right">금액</th>
-                  <th className="py-3 px-4 text-center">관리</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/30 text-sm">
-                {filteredTransactions.length > 0 ? (
-                  filteredTransactions.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-700/20 transition-colors">
-                      <td className="py-3.5 px-4 text-slate-400 text-xs">{item.date}</td>
-                      <td className="py-3.5 px-4">
-                        <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold ${item.type === 'income' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
-                          {item.type === 'income' ? '수입' : '지출'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-200">{item.category}</td>
-                      <td className="py-3.5 px-4 text-slate-400">{item.description}</td>
-                      <td className={`py-3.5 px-4 text-right font-black ${item.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {item.type === 'income' ? '+' : '-'}{Number(item.amount).toLocaleString()} 원
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <button 
-                          onClick={() => handleDelete(item.id, false)}
-                          className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+            {/* 리스트 테이블 영역 (스크롤 가능) */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-xs font-bold text-slate-400 uppercase tracking-wider sticky top-0 bg-slate-900 py-2">
+                    <th className="py-3 px-4">날짜</th>
+                    <th className="py-3 px-4">유형</th>
+                    <th className="py-3 px-4">카테고리</th>
+                    <th className="py-3 px-4">메모</th>
+                    <th className="py-3 px-4 text-right">금액</th>
+                    <th className="py-3 px-4 text-center">관리</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50 text-sm">
+                  {filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                        <td className="py-3.5 px-4 text-slate-400 text-xs">{item.date}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold ${item.type === 'income' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                            {item.type === 'income' ? '수입' : '지출'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-200">{item.category}</td>
+                        <td className="py-3.5 px-4 text-slate-400">{item.description}</td>
+                        <td className={`py-3.5 px-4 text-right font-black ${item.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {item.type === 'income' ? '+' : '-'}{Number(item.amount).toLocaleString()} 원
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button 
+                            onClick={() => handleDelete(item.id, false)}
+                            className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+                            title="삭제"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="py-16 text-center text-slate-500 text-sm">
+                        조건에 맞는 거래 내역이 없습니다.
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-500 text-sm">
-                      조건에 맞는 거래 내역이 없습니다.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 팝업 푸터 */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900/95 flex justify-end">
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-2xl text-xs transition-all"
+              >
+                닫기
+              </button>
+            </div>
+
           </div>
         </div>
+      )}
 
-      </div>
     </div>
   );
 }
