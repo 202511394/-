@@ -258,7 +258,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-3 sm:p-8 overflow-x-hidden box-border">
       <div className="max-w-6xl mx-auto space-y-5 w-full">
         
-        {/* 헤더 (이름 변경: AssetPulse - 원하시는 이름으로 수정 가능합니다) */}
+        {/* 헤더 (이름 변경: 가계부 - 원하시는 이름으로 수정 가능합니다) */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-xl gap-4">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-2xl shadow-lg shadow-indigo-500/30 text-white">
@@ -266,7 +266,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                AssetPulse <Sparkles size={16} className="가계부" />
+                가계부 <Sparkles size={16} className="text-amber-400" />
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">{session.user.email.split('@')[0]} 님의 자산 관리</p>
             </div>
