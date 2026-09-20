@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Globe, Trophy, Award 
+  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, Repeat 
 } from 'lucide-react';
 
 export default function App() {
@@ -13,16 +13,18 @@ export default function App() {
   const [loadingSession, setLoadingSession] = useState(true);
 
   const [transactions, setTransactions] = useState([]);
-  const [type, setType] = useState('expense');
+  const [fixedExpenses, setFixedExpenses] = useState([]); // 고정지출 상태
+
+  const [type, setType] = useState('expense'); // 'income', 'expense', 'fixed'
   const [category, setCategory] = useState('식비');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [paymentDay, setPaymentDay] = useState('25'); // 고정지출 납부일
   const [description, setDescription] = useState('');
 
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 커뮤니티 랭킹 상태
   const [rankingList, setRankingList] = useState([]);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function App() {
   useEffect(() => {
     if (session) {
       fetchTransactions();
+      fetchFixedExpenses();
       fetchCommunityRanking();
     }
   }, [session]);
@@ -57,16 +60,25 @@ export default function App() {
     }
   };
 
-  // 무작위 닉네임 생성 및 랭킹 데이터 불러오기
+  const fetchFixedExpenses = async () => {
+    const { data, error } = await supabase
+      .from('fixed_expenses')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('payment_day', { ascending: true });
+
+    if (!error) {
+      setFixedExpenses(data || []);
+    }
+  };
+
   const fetchCommunityRanking = async () => {
     const { data, error } = await supabase.rpc('get_community_ranking');
     if (!error && data) {
-      // 유저 UUID를 기반으로 항상 고유하고 재미있는 무작위 닉네임 부여
       const adjectives = ['절약하는', '소비요정', '티클모아', '플렉스하는', '알뜰살뜰', '고민많은', '부자될', '현명한'];
       const nouns = ['쿼카', '판다', '고양이', '사자', '햄스터', '부엉이', '너구리', '토끼'];
 
       const mapped = data.map((item, index) => {
-        // 간단하게 유저 ID 문자열을 활용해 고정된 닉네임 조합 만들기
         const charCodeSum = item.user_id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const adj = adjectives[charCodeSum % adjectives.length];
         const noun = nouns[(charCodeSum >> 1) % nouns.length];
@@ -85,7 +97,8 @@ export default function App() {
 
   const categories = {
     income: ['월급', '용돈', '부수입', '기타'],
-    expense: ['식비', '교통', '쇼핑', '주거/통신', '문화/여가', '기타']
+    expense: ['식비', '교통', '쇼핑', '주거/통신', '문화/여가', '기타'],
+    fixed: ['주거(월세)', '통신비', '구독서비스(OTT)', '보험', '대출상환', '기타']
   };
 
   const handleTypeChange = (newType) => {
@@ -100,41 +113,71 @@ export default function App() {
       return;
     }
 
-    const newTx = {
-      user_id: session.user.id,
-      type,
-      category,
-      amount: Number(amount),
-      date,
-      description: description.trim() || category
-    };
+    if (type === 'fixed') {
+      // 고정지출 저장
+      const newFixed = {
+        user_id: session.user.id,
+        title: description.trim() || category,
+        amount: Number(amount),
+        payment_day: Number(paymentDay),
+        category
+      };
 
-    const { data, error } = await supabase
-      .from('transactions')
-      .insert([newTx])
-      .select();
+      const { data, error } = await supabase
+        .from('fixed_expenses')
+        .insert([newFixed])
+        .select();
 
-    if (error) {
-      alert('저장 중 오류가 발생했습니다: ' + error.message);
-    } else if (data) {
-      setTransactions([data[0], ...transactions]);
-      setAmount('');
-      setDescription('');
-      fetchCommunityRanking();
+      if (error) {
+        alert('저장 중 오류가 발생했습니다: ' + error.message);
+      } else if (data) {
+        setFixedExpenses([...fixedExpenses, data[0]]);
+        setAmount('');
+        setDescription('');
+      }
+    } else {
+      // 일반 수입/지출 저장
+      const newTx = {
+        user_id: session.user.id,
+        type,
+        category,
+        amount: Number(amount),
+        date,
+        description: description.trim() || category
+      };
+
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([newTx])
+        .select();
+
+      if (error) {
+        alert('저장 중 오류가 발생했습니다: ' + error.message);
+      } else if (data) {
+        setTransactions([data[0], ...transactions]);
+        setAmount('');
+        setDescription('');
+        fetchCommunityRanking();
+      }
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, isFixed = false) => {
+    const tableName = isFixed ? 'fixed_expenses' : 'transactions';
     const { error } = await supabase
-      .from('transactions')
+      .from(tableName)
       .delete()
       .eq('id', id);
 
     if (error) {
       alert('삭제 중 오류가 발생했습니다: ' + error.message);
     } else {
-      setTransactions(transactions.filter(item => item.id !== id));
-      fetchCommunityRanking();
+      if (isFixed) {
+        setFixedExpenses(fixedExpenses.filter(item => item.id !== id));
+      } else {
+        setTransactions(transactions.filter(item => item.id !== id));
+        fetchCommunityRanking();
+      }
     }
   };
 
@@ -162,7 +205,10 @@ export default function App() {
     .filter(item => item.type === 'expense')
     .reduce((acc, cur) => acc + Number(cur.amount), 0);
 
-  const totalBalance = totalIncome - totalExpense;
+  const totalFixedExpense = fixedExpenses
+    .reduce((acc, cur) => acc + Number(cur.amount), 0);
+
+  const totalBalance = totalIncome - (totalExpense + totalFixedExpense);
 
   const filteredTransactions = transactions.filter(item => {
     const matchesType = filterType === 'all' || item.type === filterType;
@@ -229,7 +275,7 @@ export default function App() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">익명 커뮤니티 지출 랭킹</h3>
-                <p className="text-xs text-slate-400">Neon Ledger 사용자들의 실시간 지출 순위입니다. (나의 순위를 확인해보세요!)</p>
+                <p className="text-xs text-slate-400">Neon Ledger 사용자들의 실시간 지출 순위입니다.</p>
               </div>
             </div>
           </div>
@@ -262,50 +308,67 @@ export default function App() {
           </div>
         </div>
 
-        {/* 요약 카드 그리드 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden">
+        {/* 요약 카드 그리드 (총수입, 변동지출, 고정지출) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 수입</p>
-              <p className="text-2xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
+              <p className="text-xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
             </div>
-            <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
-              <TrendingUp size={26} />
+            <div className="p-3.5 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
+              <TrendingUp size={22} />
             </div>
           </div>
 
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden">
+          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 지출</p>
-              <p className="text-2xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">변동 지출</p>
+              <p className="text-xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
             </div>
-            <div className="p-4 bg-rose-500/10 text-rose-400 rounded-2xl border border-rose-500/20">
-              <TrendingDown size={26} />
+            <div className="p-3.5 bg-rose-500/10 text-rose-400 rounded-2xl border border-rose-500/20">
+              <TrendingDown size={22} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">고정 지출 (월)</p>
+              <p className="text-xl font-black text-amber-400 mt-1">-{totalFixedExpense.toLocaleString()} 원</p>
+            </div>
+            <div className="p-3.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
+              <Repeat size={22} />
             </div>
           </div>
         </div>
 
-        {/* 메인 콘텐츠 영역 (입력 및 원형 차트) */}
+        {/* 메인 콘텐츠 영역 (입력 폼 및 차트) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-1">
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <PlusCircle size={20} className="text-indigo-400" /> 새 내역 기록
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-700/60">
+              <div className="flex bg-slate-900/80 p-1 rounded-2xl border border-slate-700/60 gap-1">
                 <button
                   type="button"
                   onClick={() => handleTypeChange('expense')}
-                  className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${type === 'expense' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' : 'text-slate-400 hover:text-white'}`}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all ${type === 'expense' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
                   지출
                 </button>
                 <button
                   type="button"
                   onClick={() => handleTypeChange('income')}
-                  className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${type === 'income' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all ${type === 'income' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
                   수입
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTypeChange('fixed')}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all ${type === 'fixed' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                >
+                  고정지출
                 </button>
               </div>
 
@@ -336,24 +399,42 @@ export default function App() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">날짜</label>
-                <div className="relative">
-                  <Calendar size={16} className="absolute left-3.5 top-4 text-slate-500" />
-                  <input 
-                    type="date" 
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
-                  />
+              {type === 'fixed' ? (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">매월 납부일</label>
+                  <div className="relative">
+                    <Calendar size={16} className="absolute left-3.5 top-4 text-slate-500" />
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max="31" 
+                      placeholder="예: 25" 
+                      value={paymentDay}
+                      onChange={(e) => setPaymentDay(e.target.value)}
+                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">날짜</label>
+                  <div className="relative">
+                    <Calendar size={16} className="absolute left-3.5 top-4 text-slate-500" />
+                    <input 
+                      type="date" 
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">메모</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">메모 / 항목명</label>
                 <input 
                   type="text" 
-                  placeholder="내용을 입력하세요" 
+                  placeholder={type === 'fixed' ? "예: 월세, 넷플릭스" : "내용을 입력하세요"} 
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl px-4 py-3.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
@@ -364,7 +445,7 @@ export default function App() {
                 type="submit" 
                 className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg shadow-indigo-500/25"
               >
-                기록 추가하기
+                {type === 'fixed' ? '고정지출 추가하기' : '기록 추가하기'}
               </button>
             </form>
           </div>
@@ -372,7 +453,7 @@ export default function App() {
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between">
             <div>
               <h2 className="text-lg font-bold text-white mb-1">카테고리별 지출 비중</h2>
-              <p className="text-xs text-slate-400 mb-4">나의 지출 분포를 원형 차트로 확인해보세요.</p>
+              <p className="text-xs text-slate-400 mb-4">변동 지출의 카테고리별 분포를 원형 차트로 확인해보세요.</p>
             </div>
             
             <div className="h-64 w-full flex items-center justify-center">
@@ -399,11 +480,39 @@ export default function App() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">표시할 지출 데이터가 없습니다.</p>
+                <p className="text-xs text-slate-500">표시할 변동 지출 데이터가 없습니다.</p>
               )}
             </div>
           </div>
         </div>
+
+        {/* 고정지출 목록 영역 */}
+        {fixedExpenses.length > 0 && (
+          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Repeat size={18} className="text-amber-400" /> 고정지출 관리 목록
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {fixedExpenses.map((item) => (
+                <div key={item.id} className="bg-slate-900/60 border border-slate-700/60 p-4 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md font-bold">
+                      매월 {item.payment_day}일 ({item.category})
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-200 mt-1">{item.title}</h4>
+                    <span className="text-xs font-black text-amber-400">-{Number(item.amount).toLocaleString()} 원</span>
+                  </div>
+                  <button 
+                    onClick={() => handleDelete(item.id, true)}
+                    className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 내역 리스트 영역 */}
         <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
@@ -474,7 +583,7 @@ export default function App() {
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button 
-                          onClick={() => handleDelete(item.id)}
+                          onClick={() => handleDelete(item.id, false)}
                           className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
                         >
                           <Trash2 size={16} />
