@@ -22,7 +22,7 @@ export default function App() {
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 익명 글로벌 통계 상태
+  // 익명 글로벌 커뮤니티 통계 상태
   const [globalStats, setGlobalStats] = useState({ total_transactions: 0, total_amount: 0 });
 
   // 1. 로그인 세션 확인 및 감지
@@ -208,7 +208,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* 🌐 익명 커뮤니티(글로벌) 통계 카드 */}
+        {/* 🌐 실시간 익명 커뮤니티 통계 카드 */}
         <div className="bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-slate-800/60 backdrop-blur-md p-5 rounded-3xl border border-indigo-500/20 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/30">
