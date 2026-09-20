@@ -18,6 +18,9 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
+  // 팝업(모달) 관련 상태 ('income', 'expense', 'balance' 또는 null)
+  const [modalType, setModalType] = useState(null);
+
   // 거래 입력 폼 상태
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
@@ -218,8 +221,16 @@ export default function App() {
     return matchesSearch && matchesFilter;
   });
 
+  // 팝업에 표시할 데이터 필터링
+  const getModalData = () => {
+    if (modalType === 'income') return transactions.filter(t => t.type === 'income');
+    if (modalType === 'expense') return transactions.filter(t => t.type === 'expense');
+    if (modalType === 'balance') return transactions;
+    return [];
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-24">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-24 relative">
       {/* 상단 헤더 */}
       <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur sticky top-0 z-30">
         <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -257,23 +268,32 @@ export default function App() {
       {/* 메인 컨테이너 */}
       <main className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
         
-        {/* 요약 카드 영역 */}
+        {/* 요약 카드 영역 (클릭 시 팝업 오픈) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl backdrop-blur">
-            <p className="text-xs text-slate-400 font-medium">총 자산 잔액</p>
+          <div 
+            onClick={() => setModalType('balance')}
+            className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all"
+          >
+            <p className="text-xs text-slate-400 font-medium">총 자산 잔액 (클릭하여 전체보기)</p>
             <h2 className={`text-2xl font-black mt-1 ${netBalance >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
               ₩ {netBalance.toLocaleString()}
             </h2>
           </div>
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl backdrop-blur">
+          <div 
+            onClick={() => setModalType('income')}
+            className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-emerald-500/50 transition-all"
+          >
             <p className="text-xs text-emerald-400 font-medium flex items-center gap-1">
-              <TrendingUp size={14} /> 총 수입
+              <TrendingUp size={14} /> 총 수입 (클릭하여 내역보기)
             </p>
             <h2 className="text-2xl font-black text-white mt-1">₩ {totalIncome.toLocaleString()}</h2>
           </div>
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl backdrop-blur">
+          <div 
+            onClick={() => setModalType('expense')}
+            className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-rose-500/50 transition-all"
+          >
             <p className="text-xs text-rose-400 font-medium flex items-center gap-1">
-              <TrendingDown size={14} /> 총 지출
+              <TrendingDown size={14} /> 총 지출 (클릭하여 내역보기)
             </p>
             <h2 className="text-2xl font-black text-white mt-1">₩ {totalExpense.toLocaleString()}</h2>
           </div>
@@ -563,6 +583,57 @@ export default function App() {
         </div>
 
       </main>
+
+      {/* 요약 카드 클릭 시 나타나는 상세 내역 팝업 모달 */}
+      {modalType && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                {modalType === 'income' && <span className="text-emerald-400">수입 상세 내역</span>}
+                {modalType === 'expense' && <span className="text-rose-400">지출 상세 내역</span>}
+                {modalType === 'balance' && <span className="text-indigo-400">전체 자산 상세 내역</span>}
+              </h3>
+              <button 
+                onClick={() => setModalType(null)}
+                className="p-1.5 text-slate-400 hover:text-white bg-slate-950 rounded-xl border border-slate-800 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+              {getModalData().length === 0 ? (
+                <p className="text-center py-10 text-xs text-slate-500">해당 내역이 없습니다.</p>
+              ) : (
+                getModalData().map((t) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 bg-slate-950/70 border border-slate-800/50 rounded-xl text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">{t.date}</span>
+                        <span className="px-2 py-0.5 bg-slate-800 rounded text-slate-300 font-medium">{t.category}</span>
+                      </div>
+                      <p className="text-slate-200">{t.description || '메모 없음'}</p>
+                    </div>
+                    <span className={`font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <button
+                onClick={() => setModalType(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
