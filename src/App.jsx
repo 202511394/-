@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, Repeat, X 
+  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, Repeat, X, Eye, EyeOff 
 } from 'lucide-react';
 
 export default function App() {
@@ -28,6 +28,12 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [rankingList, setRankingList] = useState([]);
+  
+  // 🏆 랭킹 공개 여부 상태 (로컬 스토리지 연동)
+  const [isRankingPublic, setIsRankingPublic] = useState(() => {
+    const saved = localStorage.getItem('is_ranking_public');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
 
   const fixedSectionRef = useRef(null);
 
@@ -50,7 +56,16 @@ export default function App() {
       fetchFixedExpenses();
       fetchCommunityRanking();
     }
-  }, [session]);
+  }, [session, isRankingPublic]);
+
+  const handleToggleRankingPrivacy = () => {
+    const nextState = !isRankingPublic;
+    setIsRankingPublic(nextState);
+    localStorage.setItem('is_ranking_public', JSON.stringify(nextState));
+    if (nextState) {
+      fetchCommunityRanking();
+    }
+  };
 
   const fetchTransactions = async () => {
     const { data, error } = await supabase
@@ -82,7 +97,7 @@ export default function App() {
       const adjectives = ['절약하는', '소비요정', '티클모아', '플렉스하는', '알뜰살뜰', '고민많은', '부자될', '현명한'];
       const nouns = ['쿼카', '판다', '고양이', '사자', '햄스터', '부엉이', '너구리', '토끼'];
 
-      const mapped = data.map((item, index) => {
+      let mapped = data.map((item, index) => {
         const charCodeSum = item.user_id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const adj = adjectives[charCodeSum % adjectives.length];
         const noun = nouns[(charCodeSum >> 1) % nouns.length];
@@ -91,9 +106,15 @@ export default function App() {
           rank: index + 1,
           nickname: `${adj} ${noun} #${index + 1}`,
           totalExpense: Number(item.total_expense),
-          isMe: item.user_id === session.user.id
+          isMe: item.user_id === session.user.id,
+          userId: item.user_id
         };
       });
+
+      // 만약 내가 랭킹 비공개를 선택했다면, 리더보드 목록에서 내 계정을 아예 숨기거나 익명 처리
+      if (!isRankingPublic) {
+        mapped = mapped.filter(item => !item.isMe);
+      }
 
       setRankingList(mapped);
     }
@@ -159,7 +180,7 @@ export default function App() {
         setTransactions([data[0], ...transactions]);
         setAmount('');
         setDescription('');
-        fetchCommunityRanking();
+        if (isRankingPublic) fetchCommunityRanking();
       }
     }
   };
@@ -178,7 +199,7 @@ export default function App() {
         setFixedExpenses(fixedExpenses.filter(item => item.id !== id));
       } else {
         setTransactions(transactions.filter(item => item.id !== id));
-        fetchCommunityRanking();
+        if (isRankingPublic) fetchCommunityRanking();
       }
     }
   };
@@ -237,7 +258,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-3 sm:p-8 overflow-x-hidden box-border">
       <div className="max-w-6xl mx-auto space-y-5 w-full">
         
-        {/* 헤더 */}
+        {/* 헤더 (이름 변경: AssetPulse - 원하시는 이름으로 수정 가능합니다) */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-xl gap-4">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-2xl shadow-lg shadow-indigo-500/30 text-white">
@@ -245,7 +266,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                Neon Ledger <Sparkles size={16} className="text-amber-400" />
+                AssetPulse <Sparkles size={16} className="가계부" />
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">{session.user.email.split('@')[0]} 님의 자산 관리</p>
             </div>
@@ -268,46 +289,62 @@ export default function App() {
           </div>
         </header>
 
-        {/* 🏆 커뮤니티 지출 랭킹 리더보드 */}
+        {/* 🏆 커뮤니티 지출 랭킹 리더보드 & 프라이버시 설정 */}
         <div className="bg-gradient-to-r from-slate-800/80 via-indigo-950/40 to-slate-800/80 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-indigo-500/20 shadow-lg space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/30">
                 <Trophy size={22} />
               </div>
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-white">익명 커뮤니티 지출 랭킹</h3>
-                <p className="text-[11px] sm:text-xs text-slate-400">Neon Ledger 사용자들의 실시간 지출 순위입니다.</p>
+                <p className="text-[11px] sm:text-xs text-slate-400">사용자들의 실시간 지출 순위입니다.</p>
               </div>
             </div>
+
+            {/* 🔒 랭킹 공개 여부 토글 버튼 */}
+            <button
+              onClick={handleToggleRankingPrivacy}
+              className={`px-4 py-2 rounded-2xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${isRankingPublic ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+            >
+              {isRankingPublic ? <Eye size={15} className="text-indigo-400" /> : <EyeOff size={15} />}
+              {isRankingPublic ? '랭킹 공개 중 (숨기기)' : '랭킹 숨김 상태 (참여하기)'}
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {rankingList.length > 0 ? (
-              rankingList.map((user) => (
-                <div 
-                  key={user.rank} 
-                  className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between transition-all ${user.isMe ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-500/10' : 'bg-slate-900/50 border-slate-700/50'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-xl flex items-center justify-center text-xs font-black ${user.rank === 1 ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : user.rank === 2 ? 'bg-slate-300 text-slate-900' : user.rank === 3 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                      {user.rank}
-                    </span>
-                    <div>
-                      <span className="text-xs font-bold text-slate-200 block flex items-center gap-1.5">
-                        {user.nickname}
-                        {user.isMe && <span className="text-[9px] bg-indigo-500 text-white px-1.5 py-0.5 rounded-md font-semibold">나</span>}
+          {isRankingPublic ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {rankingList.length > 0 ? (
+                rankingList.map((user) => (
+                  <div 
+                    key={user.rank} 
+                    className={`p-3.5 sm:p-4 rounded-2xl border flex items-center justify-between transition-all ${user.isMe ? 'bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-500/10' : 'bg-slate-900/50 border-slate-700/50'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-xl flex items-center justify-center text-xs font-black ${user.rank === 1 ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' : user.rank === 2 ? 'bg-slate-300 text-slate-900' : user.rank === 3 ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                        {user.rank}
                       </span>
-                      <span className="text-[10px] text-slate-400">총 지출 금액</span>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block flex items-center gap-1.5">
+                          {user.nickname}
+                          {user.isMe && <span className="text-[9px] bg-indigo-500 text-white px-1.5 py-0.5 rounded-md font-semibold">나</span>}
+                        </span>
+                        <span className="text-[10px] text-slate-400">총 지출 금액</span>
+                      </div>
                     </div>
+                    <span className="text-xs sm:text-sm font-black text-rose-400">-{user.totalExpense.toLocaleString()}원</span>
                   </div>
-                  <span className="text-xs sm:text-sm font-black text-rose-400">-{user.totalExpense.toLocaleString()}원</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-slate-500 col-span-full text-center py-4">등록된 커뮤니티 랭킹 데이터가 없습니다.</p>
-            )}
-          </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500 col-span-full text-center py-4">등록된 커뮤니티 랭킹 데이터가 없습니다.</p>
+              )}
+            </div>
+          ) : (
+            <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-2xl text-center space-y-2">
+              <p className="text-xs font-semibold text-slate-300">현재 랭킹 숨김 모드가 활성화되어 있습니다.</p>
+              <p className="text-[11px] text-slate-500">내 지출 내역이 리더보드에 노출되지 않으며, 다른 사용자들의 순위도 보이지 않습니다.</p>
+            </div>
+          )}
         </div>
 
         {/* 요약 카드 그리드 */}
