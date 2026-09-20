@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut 
+  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut, Globe 
 } from 'lucide-react';
 
 export default function App() {
@@ -22,6 +22,9 @@ export default function App() {
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // 익명 글로벌 통계 상태
+  const [globalStats, setGlobalStats] = useState({ total_transactions: 0, total_amount: 0 });
+
   // 1. 로그인 세션 확인 및 감지
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -36,10 +39,11 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. 로그인된 사용자의 거래 내역 불러오기
+  // 2. 로그인된 사용자의 거래 내역 및 익명 통계 불러오기
   useEffect(() => {
     if (session) {
       fetchTransactions();
+      fetchGlobalStats();
     }
   }, [session]);
 
@@ -54,6 +58,14 @@ export default function App() {
       console.error('데이터를 불러오는 중 에러 발생:', error.message);
     } else {
       setTransactions(data || []);
+    }
+  };
+
+  // 익명 글로벌 통계 불러오기
+  const fetchGlobalStats = async () => {
+    const { data, error } = await supabase.rpc('get_global_stats');
+    if (!error && data && data.length > 0) {
+      setGlobalStats(data[0]);
     }
   };
 
@@ -95,6 +107,7 @@ export default function App() {
       setTransactions([data[0], ...transactions]);
       setAmount('');
       setDescription('');
+      fetchGlobalStats(); // 통계 갱신
     }
   };
 
@@ -109,6 +122,7 @@ export default function App() {
       alert('삭제 중 오류가 발생했습니다: ' + error.message);
     } else {
       setTransactions(transactions.filter(item => item.id !== id));
+      fetchGlobalStats(); // 통계 갱신
     }
   };
 
@@ -124,7 +138,6 @@ export default function App() {
     );
   }
 
-  // 로그인하지 않은 경우 로그인 화면 표시
   if (!session) {
     return <Auth />;
   }
@@ -174,7 +187,7 @@ export default function App() {
               <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 Neon Ledger <Sparkles size={18} className="text-amber-400" />
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">{session.user.email} 님의 자산 관리</p>
+              <p className="text-xs text-slate-400 mt-0.5">{session.user.email.split('@')[0]} 님의 자산 관리</p>
             </div>
           </div>
           
@@ -195,12 +208,36 @@ export default function App() {
           </div>
         </header>
 
+        {/* 🌐 익명 커뮤니티(글로벌) 통계 카드 */}
+        <div className="bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-slate-800/60 backdrop-blur-md p-5 rounded-3xl border border-indigo-500/20 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/30">
+              <Globe size={24} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-200">실시간 익명 사용자 커뮤니티 통계</h3>
+              <p className="text-xs text-slate-400">Neon Ledger를 이용하는 모든 사용자들이 함께 기록 중인 데이터입니다.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-6 text-right w-full sm:w-auto justify-around sm:justify-end bg-slate-900/40 px-5 py-3 rounded-2xl border border-slate-700/40">
+            <div>
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">전체 기록 건수</span>
+              <span className="text-base font-black text-indigo-400">{Number(globalStats.total_transactions).toLocaleString()} 건</span>
+            </div>
+            <div className="w-[1px] h-8 bg-slate-700"></div>
+            <div>
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">전체 누적 금액</span>
+              <span className="text-base font-black text-violet-400">{Number(globalStats.total_amount).toLocaleString()} 원</span>
+            </div>
+          </div>
+        </div>
+
         {/* 요약 카드 그리드 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden group">
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">총 수입</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 수입</p>
               <p className="text-2xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
             </div>
             <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
@@ -211,7 +248,7 @@ export default function App() {
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden group">
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/10 rounded-full blur-xl"></div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">총 지출</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 지출</p>
               <p className="text-2xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
             </div>
             <div className="p-4 bg-rose-500/10 text-rose-400 rounded-2xl border border-rose-500/20">
@@ -220,10 +257,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* 메인 콘텐츠 영역 */}
+        {/* 메인 콘텐츠 영역 (입력 및 차트) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* 입력 폼 */}
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-1">
             <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <PlusCircle size={20} className="text-indigo-400" /> 새 내역 기록
@@ -306,7 +341,6 @@ export default function App() {
             </form>
           </div>
 
-          {/* 차트 영역 */}
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between">
             <div>
               <h2 className="text-lg font-bold text-white mb-1">카테고리별 지출 분석</h2>
@@ -342,7 +376,6 @@ export default function App() {
               )}
             </div>
           </div>
-
         </div>
 
         {/* 내역 리스트 영역 */}
