@@ -189,7 +189,7 @@ export default function App() {
 
   if (loadingSession) {
     return (
-      <div className="min-h-[100dvh] bg-slate-900 text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center">
         <p className="text-sm text-slate-400">로딩 중...</p>
       </div>
     );
@@ -234,7 +234,7 @@ export default function App() {
   const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
   return (
-    <div className="min-h-[100dvh] bg-slate-900 text-slate-100 font-sans p-3 sm:p-8 pb-16">
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-3 sm:p-8 pb-32">
       <div className="max-w-6xl mx-auto space-y-5">
         
         {/* 헤더 */}
@@ -260,7 +260,7 @@ export default function App() {
             </div>
             <button 
               onClick={handleLogout}
-              className="p-3 bg-slate-700/50 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 rounded-2xl border border-slate-600/50 transition-all"
+              className="p-3 bg-slate-700/50 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 rounded-2xl border border-slate-600/50 transition-all cursor-pointer"
               title="로그아웃"
             >
               <LogOut size={18} />
@@ -379,21 +379,21 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => handleTypeChange('expense')}
-                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all ${type === 'expense' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all cursor-pointer ${type === 'expense' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
                   지출
                 </button>
                 <button
                   type="button"
                   onClick={() => handleTypeChange('income')}
-                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all ${type === 'income' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all cursor-pointer ${type === 'income' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
                   수입
                 </button>
                 <button
                   type="button"
                   onClick={() => handleTypeChange('fixed')}
-                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all ${type === 'fixed' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+                  className={`flex-1 py-2 text-[11px] font-bold rounded-xl transition-all cursor-pointer ${type === 'fixed' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                 >
                   고정지출
                 </button>
