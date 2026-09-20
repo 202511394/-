@@ -185,7 +185,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                AssetPulse <Sparkles size={15} className="text-amber-400" />
+                가계부 <Sparkles size={15} className="text-amber-400" />
               </h1>
               <p className="text-xs text-slate-400">스마트 자산 관리 & 랭킹</p>
             </div>
@@ -481,7 +481,7 @@ function AuthView() {
           <div className="w-16 h-16 rounded-3xl overflow-hidden shadow-xl border border-slate-700/50 flex items-center justify-center bg-indigo-600 text-white font-bold">
             <Wallet size={32} />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">AssetPulse</h1>
+          <h1 className="text-2xl font-black text-white tracking-tight">가계부</h1>
           <p className="text-xs text-slate-400">스마트한 자산 관리와 커뮤니티 랭킹</p>
         </div>
 
