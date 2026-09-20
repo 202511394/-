@@ -264,7 +264,7 @@ export default function App() {
             <div className="p-3 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-2xl shadow-lg shadow-indigo-500/30 text-white">
               <Wallet size={26} />
             </div>
-            <div>
+            <div> 
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 가계부 <Sparkles size={16} className="text-amber-400" />
               </h1>
