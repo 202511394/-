@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 import Auth from './Auth';
 import { 
@@ -13,19 +13,22 @@ export default function App() {
   const [loadingSession, setLoadingSession] = useState(true);
 
   const [transactions, setTransactions] = useState([]);
-  const [fixedExpenses, setFixedExpenses] = useState([]); // 고정지출 상태
+  const [fixedExpenses, setFixedExpenses] = useState([]);
 
   const [type, setType] = useState('expense'); // 'income', 'expense', 'fixed'
   const [category, setCategory] = useState('식비');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [paymentDay, setPaymentDay] = useState('25'); // 고정지출 납부일
+  const [paymentDay, setPaymentDay] = useState('25');
   const [description, setDescription] = useState('');
 
-  const [filterType, setFilterType] = useState('all');
+  const [filterType, setFilterType] = useState('all'); // 'all', 'income', 'expense'
   const [searchTerm, setSearchTerm] = useState('');
 
   const [rankingList, setRankingList] = useState([]);
+
+  // 고정지출 목록 섹션 참조용 ref
+  const fixedSectionRef = useRef(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -114,7 +117,6 @@ export default function App() {
     }
 
     if (type === 'fixed') {
-      // 고정지출 저장
       const newFixed = {
         user_id: session.user.id,
         title: description.trim() || category,
@@ -136,7 +138,6 @@ export default function App() {
         setDescription('');
       }
     } else {
-      // 일반 수입/지출 저장
       const newTx = {
         user_id: session.user.id,
         type,
@@ -308,37 +309,56 @@ export default function App() {
           </div>
         </div>
 
-        {/* 요약 카드 그리드 (총수입, 변동지출, 고정지출) */}
+        {/* 요약 카드 그리드 (클릭 시 해당 내역 필터링 또는 고정지출 섹션으로 이동) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between">
+          <button 
+            onClick={() => setFilterType('income')}
+            className={`bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer ${filterType === 'income' ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30' : 'border-slate-700/50 hover:border-slate-500'}`}
+          >
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">나의 총 수입</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                나의 총 수입 <span className="text-[10px] text-emerald-400 font-bold">(클릭시 보기)</span>
+              </p>
               <p className="text-xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
             </div>
             <div className="p-3.5 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
               <TrendingUp size={22} />
             </div>
-          </div>
+          </button>
 
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between">
+          <button 
+            onClick={() => setFilterType('expense')}
+            className={`bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer ${filterType === 'expense' ? 'border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/30' : 'border-slate-700/50 hover:border-slate-500'}`}
+          >
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">변동 지출</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                변동 지출 <span className="text-[10px] text-rose-400 font-bold">(클릭시 보기)</span>
+              </p>
               <p className="text-xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
             </div>
             <div className="p-3.5 bg-rose-500/10 text-rose-400 rounded-2xl border border-rose-500/20">
               <TrendingDown size={22} />
             </div>
-          </div>
+          </button>
 
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between">
+          <button 
+            onClick={() => {
+              if (fixedSectionRef.current) {
+                fixedSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 hover:border-amber-500 shadow-lg flex items-center justify-between text-left transition-all hover:scale-[1.02] cursor-pointer"
+          >
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">고정 지출 (월)</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                고정 지출 (월) <span className="text-[10px] text-amber-400 font-bold">(목록으로 이동)</span>
+              </p>
               <p className="text-xl font-black text-amber-400 mt-1">-{totalFixedExpense.toLocaleString()} 원</p>
             </div>
             <div className="p-3.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
               <Repeat size={22} />
             </div>
-          </div>
+          </button>
         </div>
 
         {/* 메인 콘텐츠 영역 (입력 폼 및 차트) */}
@@ -486,12 +506,16 @@ export default function App() {
           </div>
         </div>
 
-        {/* 고정지출 목록 영역 */}
-        {fixedExpenses.length > 0 && (
-          <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
+        {/* 고정지출 목록 영역 (참조 ref 설정) */}
+        <div ref={fixedSectionRef} className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
+          <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Repeat size={18} className="text-amber-400" /> 고정지출 관리 목록
             </h2>
+            <span className="text-xs text-slate-400">총 {fixedExpenses.length}개 항목</span>
+          </div>
+
+          {fixedExpenses.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {fixedExpenses.map((item) => (
                 <div key={item.id} className="bg-slate-900/60 border border-slate-700/60 p-4 rounded-2xl flex items-center justify-between">
@@ -511,8 +535,10 @@ export default function App() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-xs text-slate-500 text-center py-6">등록된 고정지출 항목이 없습니다. 상단에서 고정지출을 추가해 보세요!</p>
+          )}
+        </div>
 
         {/* 내역 리스트 영역 */}
         <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-4">
@@ -594,7 +620,7 @@ export default function App() {
                 ) : (
                   <tr>
                     <td colSpan="6" className="py-12 text-center text-slate-500 text-sm">
-                      거래 내역이 없습니다. 새로운 내역을 추가해 보세요!
+                      조건에 맞는 거래 내역이 없습니다.
                     </td>
                   </tr>
                 )}
