@@ -1,24 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabase';
+import Auth from './Auth';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
 } from 'recharts';
 import { 
-  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles 
+  Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, Search, Calendar, DollarSign, Sparkles, LogOut 
 } from 'lucide-react';
 
 export default function App() {
-  const [transactions, setTransactions] = useState(() => {
-    const saved = localStorage.getItem('clean_ledger_data');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return [
-      { id: 1, type: 'income', category: '월급', amount: 3500000, date: '2026-09-01', description: '9월 급여' },
-      { id: 2, type: 'expense', category: '식비', amount: 18000, date: '2026-09-20', description: '점심 식사' },
-      { id: 3, type: 'expense', category: '쇼핑', amount: 89000, date: '2026-09-20', description: '의류 구입' },
-    ];
-  });
+  const [session, setSession] = useState(null);
+  const [loadingSession, setLoadingSession] = useState(true);
 
+  const [transactions, setTransactions] = useState([]);
   const [type, setType] = useState('expense');
   const [category, setCategory] = useState('식비');
   const [amount, setAmount] = useState('');
@@ -28,9 +22,40 @@ export default function App() {
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // 1. 로그인 세션 확인 및 감지
   useEffect(() => {
-    localStorage.setItem('clean_ledger_data', JSON.stringify(transactions));
-  }, [transactions]);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingSession(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 2. 로그인된 사용자의 거래 내역 불러오기
+  useEffect(() => {
+    if (session) {
+      fetchTransactions();
+    }
+  }, [session]);
+
+  const fetchTransactions = async () => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('데이터를 불러오는 중 에러 발생:', error.message);
+    } else {
+      setTransactions(data || []);
+    }
+  };
 
   const categories = {
     income: ['월급', '용돈', '부수입', '기타'],
@@ -42,7 +67,8 @@ export default function App() {
     setCategory(categories[newType][0]);
   };
 
-  const handleSubmit = (e) => {
+  // 3. 내역 추가 (Supabase 저장)
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount || isNaN(amount) || Number(amount) <= 0) {
       alert('올바른 금액을 입력해주세요.');
@@ -50,7 +76,7 @@ export default function App() {
     }
 
     const newTx = {
-      id: Date.now(),
+      user_id: session.user.id,
       type,
       category,
       amount: Number(amount),
@@ -58,22 +84,58 @@ export default function App() {
       description: description.trim() || category
     };
 
-    setTransactions([newTx, ...transactions]);
-    setAmount('');
-    setDescription('');
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([newTx])
+      .select();
+
+    if (error) {
+      alert('저장 중 오류가 발생했습니다: ' + error.message);
+    } else if (data) {
+      setTransactions([data[0], ...transactions]);
+      setAmount('');
+      setDescription('');
+    }
   };
 
-  const handleDelete = (id) => {
-    setTransactions(transactions.filter(item => item.id !== id));
+  // 4. 내역 삭제 (Supabase 삭제)
+  const handleDelete = async (id) => {
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      alert('삭제 중 오류가 발생했습니다: ' + error.message);
+    } else {
+      setTransactions(transactions.filter(item => item.id !== id));
+    }
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center">
+        <p className="text-sm text-slate-400">로딩 중...</p>
+      </div>
+    );
+  }
+
+  // 로그인하지 않은 경우 로그인 화면 표시
+  if (!session) {
+    return <Auth />;
+  }
 
   const totalIncome = transactions
     .filter(item => item.type === 'income')
-    .reduce((acc, cur) => acc + cur.amount, 0);
+    .reduce((acc, cur) => acc + Number(cur.amount), 0);
 
   const totalExpense = transactions
     .filter(item => item.type === 'expense')
-    .reduce((acc, cur) => acc + cur.amount, 0);
+    .reduce((acc, cur) => acc + Number(cur.amount), 0);
 
   const totalBalance = totalIncome - totalExpense;
 
@@ -87,7 +149,7 @@ export default function App() {
   const expenseDataMap = transactions
     .filter(item => item.type === 'expense')
     .reduce((acc, cur) => {
-      acc[cur.category] = (acc[cur.category] || 0) + cur.amount;
+      acc[cur.category] = (acc[cur.category] || 0) + Number(cur.amount);
       return acc;
     }, {});
 
@@ -112,14 +174,24 @@ export default function App() {
               <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 Neon Ledger <Sparkles size={18} className="text-amber-400" />
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">스마트하고 감각적인 자산 관리</p>
+              <p className="text-xs text-slate-400 mt-0.5">{session.user.email} 님의 자산 관리</p>
             </div>
           </div>
-          <div className="text-right sm:block flex justify-between w-full sm:w-auto border-t border-slate-700 sm:border-t-0 pt-3 sm:pt-0">
-            <span className="text-xs text-slate-400 block uppercase tracking-wider">Total Balance</span>
-            <span className={`text-2xl font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
-              {totalBalance.toLocaleString()} 원
-            </span>
+          
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t border-slate-700 sm:border-t-0 pt-3 sm:pt-0">
+            <div className="text-right">
+              <span className="text-xs text-slate-400 block uppercase tracking-wider">Total Balance</span>
+              <span className={`text-2xl font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+                {totalBalance.toLocaleString()} 원
+              </span>
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="p-3 bg-slate-700/50 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 rounded-2xl border border-slate-600/50 transition-all"
+              title="로그아웃"
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </header>
 
@@ -128,7 +200,7 @@ export default function App() {
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden group">
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">이번 달 총 수입</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">총 수입</p>
               <p className="text-2xl font-black text-emerald-400 mt-1">+{totalIncome.toLocaleString()} 원</p>
             </div>
             <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
@@ -139,7 +211,7 @@ export default function App() {
           <div className="bg-slate-800/60 backdrop-blur-md p-6 rounded-3xl border border-slate-700/50 shadow-lg flex items-center justify-between relative overflow-hidden group">
             <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-rose-500/10 rounded-full blur-xl"></div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">이번 달 총 지출</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">총 지출</p>
               <p className="text-2xl font-black text-rose-400 mt-1">-{totalExpense.toLocaleString()} 원</p>
             </div>
             <div className="p-4 bg-rose-500/10 text-rose-400 rounded-2xl border border-rose-500/20">
@@ -260,7 +332,7 @@ export default function App() {
                     </Pie>
                     <Tooltip 
                       contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '1rem', color: '#fff' }}
-                      formatter={(value) => `${value.toLocaleString()} 원`} 
+                      formatter={(value) => `${Number(value).toLocaleString()} 원`} 
                     />
                     <Legend />
                   </PieChart>
@@ -338,7 +410,7 @@ export default function App() {
                       <td className="py-3.5 px-4 font-semibold text-slate-200">{item.category}</td>
                       <td className="py-3.5 px-4 text-slate-400">{item.description}</td>
                       <td className={`py-3.5 px-4 text-right font-black ${item.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {item.type === 'income' ? '+' : '-'}{item.amount.toLocaleString()} 원
+                        {item.type === 'income' ? '+' : '-'}{Number(item.amount).toLocaleString()} 원
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button 
