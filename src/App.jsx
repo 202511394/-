@@ -15,14 +15,20 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState([]);
+  const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
-  // 폼 입력 상태
+  // 거래 입력 폼 상태
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('식비');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // 고정지출 입력 폼 상태
+  const [recTitle, setRecTitle] = useState('');
+  const [recAmount, setRecAmount] = useState('');
+  const [recDate, setRecDate] = useState('25');
 
   // UI 필터 및 설정 상태
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +57,7 @@ export default function App() {
     if (session) {
       fetchTransactions();
       fetchRankings();
+      fetchRecurring();
     }
   }, [session, hideRanking]);
 
@@ -62,6 +69,16 @@ export default function App() {
 
     if (error) console.error('트랜잭션 조회 에러:', error.message);
     else setTransactions(data || []);
+  };
+
+  const fetchRecurring = async () => {
+    const { data, error } = await supabase
+      .from('recurring_expenses')
+      .select('*')
+      .order('pay_date', { ascending: true });
+
+    if (error) console.error('고정지출 조회 에러:', error.message);
+    else setRecurringList(data || []);
   };
 
   const fetchRankings = async () => {
@@ -127,6 +144,39 @@ export default function App() {
     }
   };
 
+  // 고정지출 추가
+  const handleAddRecurring = async (e) => {
+    e.preventDefault();
+    if (!recTitle || !recAmount) return;
+
+    const { error } = await supabase.from('recurring_expenses').insert([
+      {
+        user_id: session.user.id,
+        title: recTitle,
+        amount: parseFloat(recAmount),
+        pay_date: parseInt(recDate),
+      },
+    ]);
+
+    if (error) {
+      alert('고정지출 추가 실패: ' + error.message);
+    } else {
+      setRecTitle('');
+      setRecAmount('');
+      fetchRecurring();
+    }
+  };
+
+  // 고정지출 삭제
+  const handleDeleteRecurring = async (id) => {
+    const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
+    if (error) {
+      alert('삭제 실패: ' + error.message);
+    } else {
+      fetchRecurring();
+    }
+  };
+
   // 회원탈퇴 기능
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm("정말 탈퇴하시겠습니까? 모든 자산 기록이 영구적으로 삭제되며 복구할 수 없습니다.");
@@ -134,19 +184,14 @@ export default function App() {
 
     try {
       const { error } = await supabase.rpc('delete_user_account');
-      
-      if (error) {
-        console.error("Supabase RPC 에러 상세:", error);
-        alert(`탈퇴 실패: ${error.message || JSON.stringify(error)}`);
-        return;
-      }
+      if (error) throw error;
 
       await supabase.auth.signOut();
       alert("회원탈퇴가 정상적으로 처리되었습니다.");
       window.location.reload();
     } catch (err) {
-      console.error("예외 발생:", err);
-      alert("탈퇴 처리 중 예외가 발생했습니다: " + (err.message || err));
+      console.error("탈퇴 중 에러 발생:", err.message);
+      alert("탈퇴 처리에 실패했습니다. 다시 시도해 주세요.");
     }
   };
 
@@ -158,7 +203,6 @@ export default function App() {
     );
   }
 
-  // 로그인이 안 되어 있는 경우 (로그인/회원가입 화면)
   if (!session) {
     return <AuthView />;
   }
@@ -185,7 +229,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-black tracking-tight text-white flex items-center gap-1.5">
-                가계부 <Sparkles size={15} className="text-amber-400" />
+                AssetPulse <Sparkles size={15} className="text-amber-400" />
               </h1>
               <p className="text-xs text-slate-400">스마트 자산 관리 & 랭킹</p>
             </div>
@@ -371,6 +415,77 @@ export default function App() {
 
         </div>
 
+        {/* 고정지출 관리 영역 */}
+        <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl space-y-4">
+          <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+            <Repeat size={16} className="text-indigo-400" /> 고정지출 관리 (월 정기 지출)
+          </h3>
+
+          <form onSubmit={handleAddRecurring} className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+            <input
+              type="text"
+              value={recTitle}
+              onChange={(e) => setRecTitle(e.target.value)}
+              placeholder="항목명 (예: 넷플릭스)"
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              required
+            />
+            <input
+              type="number"
+              value={recAmount}
+              onChange={(e) => setRecAmount(e.target.value)}
+              placeholder="금액 (원)"
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              required
+            />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-slate-400 whitespace-nowrap">매월</span>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={recDate}
+                onChange={(e) => setRecDate(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 text-center"
+                required
+              />
+              <span className="text-xs text-slate-400">일</span>
+            </div>
+            <button
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl py-2 transition-colors shadow-lg shadow-indigo-600/20"
+            >
+              고정지출 추가
+            </button>
+          </form>
+
+          <div className="space-y-2 pt-2">
+            {recurringList.length === 0 ? (
+              <p className="text-center py-4 text-xs text-slate-500">등록된 고정지출이 없습니다.</p>
+            ) : (
+              recurringList.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-slate-950/70 border border-slate-800/50 rounded-xl text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-1 bg-indigo-500/10 text-indigo-400 font-bold rounded-lg">
+                      매월 {item.pay_date}일
+                    </span>
+                    <span className="text-slate-200 font-medium">{item.title}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-rose-400">₩ {Number(item.amount).toLocaleString()}</span>
+                    <button
+                      onClick={() => handleDeleteRecurring(item.id)}
+                      className="text-slate-500 hover:text-rose-400 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* 내역 목록 테이블 및 검색/필터 */}
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
@@ -481,7 +596,7 @@ function AuthView() {
           <div className="w-16 h-16 rounded-3xl overflow-hidden shadow-xl border border-slate-700/50 flex items-center justify-center bg-indigo-600 text-white font-bold">
             <Wallet size={32} />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">가계부</h1>
+          <h1 className="text-2xl font-black text-white tracking-tight">AssetPulse</h1>
           <p className="text-xs text-slate-400">스마트한 자산 관리와 커뮤니티 랭킹</p>
         </div>
 
