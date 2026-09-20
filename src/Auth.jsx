@@ -37,7 +37,7 @@ export default function Auth() {
             <Wallet size={32} />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            Neon Ledger <Sparkles size={18} className="text-amber-400" />
+            가계부 <Sparkles size={18} className="text-amber-400" />
           </h1>
           <p className="text-xs text-slate-400">스마트하고 직관적인 자산 관리 서비스</p>
         </div>
