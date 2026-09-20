@@ -234,8 +234,8 @@ export default function App() {
   const COLORS = ['#6366f1', '#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-3 sm:p-8 pb-32">
-      <div className="max-w-6xl mx-auto space-y-5">
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-3 sm:p-8 overflow-x-hidden box-border">
+      <div className="max-w-6xl mx-auto space-y-5 w-full">
         
         {/* 헤더 */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-xl gap-4">
@@ -370,7 +370,7 @@ export default function App() {
 
         {/* 메인 콘텐츠 영역 (입력 폼 및 차트) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-1">
+          <div className="bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-1 overflow-hidden">
             <h2 className="text-base sm:text-lg font-bold text-white mb-4 flex items-center gap-2">
               <PlusCircle size={18} className="text-indigo-400" /> 새 내역 기록
             </h2>
@@ -404,7 +404,7 @@ export default function App() {
                 <select 
                   value={category} 
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl p-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors box-border"
                 >
                   {categories[type].map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
@@ -414,14 +414,14 @@ export default function App() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1.5">금액 (원)</label>
-                <div className="relative">
-                  <DollarSign size={16} className="absolute left-3.5 top-3.5 text-slate-500" />
+                <div className="relative overflow-hidden rounded-2xl">
+                  <DollarSign size={16} className="absolute left-3.5 top-3.5 text-slate-500 z-10" />
                   <input 
                     type="number" 
                     placeholder="0" 
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors box-border"
                   />
                 </div>
               </div>
@@ -429,8 +429,8 @@ export default function App() {
               {type === 'fixed' ? (
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1.5">매월 납부일</label>
-                  <div className="relative">
-                    <Calendar size={16} className="absolute left-3.5 top-3.5 text-slate-500" />
+                  <div className="relative overflow-hidden rounded-2xl">
+                    <Calendar size={16} className="absolute left-3.5 top-3.5 text-slate-500 z-10" />
                     <input 
                       type="number" 
                       min="1" 
@@ -438,20 +438,20 @@ export default function App() {
                       placeholder="예: 25" 
                       value={paymentDay}
                       onChange={(e) => setPaymentDay(e.target.value)}
-                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors box-border"
                     />
                   </div>
                 </div>
               ) : (
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1.5">날짜</label>
-                  <div className="relative">
-                    <Calendar size={16} className="absolute left-3.5 top-3.5 text-slate-500" />
+                  <div className="relative overflow-hidden rounded-2xl">
+                    <Calendar size={16} className="absolute left-3.5 top-3.5 text-slate-500 z-10" />
                     <input 
                       type="date" 
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
-                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors box-border"
                     />
                   </div>
                 </div>
@@ -464,7 +464,7 @@ export default function App() {
                   placeholder={type === 'fixed' ? "예: 월세, 넷플릭스" : "내용을 입력하세요"} 
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-900/80 border border-slate-700/80 rounded-2xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors box-border"
                 />
               </div>
 
@@ -477,7 +477,7 @@ export default function App() {
             </form>
           </div>
 
-          <div className="bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between">
+          <div className="bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-lg lg:col-span-2 flex flex-col justify-between overflow-hidden">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-2">
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-white mb-1">카테고리별 지출 비중</h2>
@@ -526,7 +526,7 @@ export default function App() {
         </div>
 
         {/* 고정지출 목록 영역 */}
-        <div ref={fixedSectionRef} className="bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-3.5">
+        <div ref={fixedSectionRef} className="bg-slate-800/60 backdrop-blur-md p-5 sm:p-6 rounded-3xl border border-slate-700/50 shadow-lg space-y-3.5 overflow-hidden">
           <div className="flex items-center justify-between">
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
               <Repeat size={17} className="text-amber-400" /> 고정지출 관리 목록
@@ -558,6 +558,9 @@ export default function App() {
             <p className="text-xs text-slate-500 text-center py-5">등록된 고정지출 항목이 없습니다. 상단에서 고정지출을 추가해 보세요!</p>
           )}
         </div>
+
+        {/* 💡 모바일 하단 가림 방지 여백 박스 */}
+        <div className="h-40 w-full" aria-hidden="true" />
 
       </div>
 
@@ -608,14 +611,14 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="relative w-full sm:w-72">
-                <Search size={15} className="absolute left-3.5 top-3 text-slate-500" />
+              <div className="relative w-full sm:w-72 overflow-hidden rounded-2xl">
+                <Search size={15} className="absolute left-3.5 top-3 text-slate-500 z-10" />
                 <input 
                   type="text" 
                   placeholder="내용 또는 카테고리 검색" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-800/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-800/80 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors box-border"
                 />
               </div>
             </div>
