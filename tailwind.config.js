@@ -4,7 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  darkMode: 'class',  
+  darkMode: 'class', // 이 설정이 꼭 있어야 합니다!
   theme: {
     extend: {},
   },
