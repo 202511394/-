@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, 
   Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, 
-  Repeat, X, Eye, EyeOff, UserX, Sun, Moon
+  Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3
 } from 'lucide-react';
 
 // Supabase 클라이언트 초기화 (환경 변수 또는 직접 입력)
@@ -18,7 +18,7 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
-  // 테마 상태 관리 ('dark' 또는 'light') - 초기화 시 <html> 태그와 즉시 동기화
+  // 테마 상태 관리 ('dark' 또는 'light')
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
     if (saved) {
@@ -36,7 +36,8 @@ export default function App() {
   // 팝업(모달) 관련 상태 ('income', 'expense', 'balance' 또는 null)
   const [modalType, setModalType] = useState(null);
 
-  // 거래 입력 폼 상태
+  // 거래 입력 및 수정 폼 상태
+  const [editingId, setEditingId] = useState(null); // 👈 수정 중인 거래 ID (null이면 추가 모드)
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('식비');
@@ -141,30 +142,74 @@ export default function App() {
     }
   };
 
-  // 거래 내역 추가
-  const handleAddTransaction = async (e) => {
+  // 거래 내역 추가 또는 수정 제출
+  const handleSubmitTransaction = async (e) => {
     e.preventDefault();
     if (!amount || !category) return;
 
-    const { error } = await supabase.from('transactions').insert([
-      {
-        user_id: session.user.id,
-        type,
-        amount: parseFloat(amount),
-        category,
-        description,
-        date,
-      },
-    ]);
+    if (editingId) {
+      // 수정 모드
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          type,
+          amount: parseFloat(amount),
+          category,
+          description,
+          date,
+        })
+        .eq('id', editingId);
 
-    if (error) {
-      alert('추가 실패: ' + error.message);
+      if (error) {
+        alert('수정 실패: ' + error.message);
+      } else {
+        resetForm();
+        fetchTransactions();
+        fetchRankings();
+      }
     } else {
-      setAmount('');
-      setDescription('');
-      fetchTransactions();
-      fetchRankings();
+      // 추가 모드
+      const { error } = await supabase.from('transactions').insert([
+        {
+          user_id: session.user.id,
+          type,
+          amount: parseFloat(amount),
+          category,
+          description,
+          date,
+        },
+      ]);
+
+      if (error) {
+        alert('추가 실패: ' + error.message);
+      } else {
+        resetForm();
+        fetchTransactions();
+        fetchRankings();
+      }
     }
+  };
+
+  // 폼 초기화 및 수정 모드 해제
+  const resetForm = () => {
+    setEditingId(null);
+    setAmount('');
+    setDescription('');
+    setDate(new Date().toISOString().split('T')[0]);
+  };
+
+  // 특정 거래를 수정 상태로 설정
+  const handleEditClick = (t) => {
+    setEditingId(t.id);
+    setType(t.type);
+    setAmount(t.amount);
+    setCategory(t.category);
+    setDescription(t.description || '');
+    setDate(t.date);
+    // 모달이 열려있다면 닫아주기
+    setModalType(null);
+    // 화면 상단 입력폼으로 부드럽게 스크롤
+    window.scrollTo({ top: 200, behavior: 'smooth' });
   };
 
   // 거래 내역 삭제
@@ -173,6 +218,7 @@ export default function App() {
     if (error) {
       alert('삭제 실패: ' + error.message);
     } else {
+      if (editingId === id) resetForm();
       fetchTransactions();
       fetchRankings();
     }
@@ -276,9 +322,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* 우측 버튼 그룹 (테마 변경 + 회원탈퇴 + 로그아웃) */}
           <div className="flex items-center gap-2">
-            {/* 테마 전환 버튼 */}
             <button 
               onClick={toggleTheme}
               className="p-2 bg-slate-200/70 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 transition-colors"
@@ -338,15 +382,35 @@ export default function App() {
           </div>
         </div>
 
-        {/* 입력 폼 & 랭킹 그리드 */}
+        {/* 입력/수정 폼 & 랭킹 그리드 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* 거래 입력 폼 */}
+          {/* 거래 입력 및 수정 폼 */}
           <div className="lg:col-span-2 p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2">
-              <PlusCircle size={16} className="text-indigo-600 dark:text-indigo-400" />새 거래 내역 추가
-            </h3>
-            <form onSubmit={handleAddTransaction} className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                {editingId ? (
+                  <span className="flex items-center gap-2 text-amber-500 dark:text-amber-400">
+                    <Edit3 size={16} /> 거래 내역 수정 중
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                    <PlusCircle size={16} /> 새 거래 내역 추가
+                  </span>
+                )}
+              </h3>
+              {editingId && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
+                >
+                  수정 취소
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSubmitTransaction} className="space-y-4">
               <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -417,9 +481,9 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors shadow-lg shadow-indigo-600/30"
+                className={`w-full py-3 font-bold text-xs rounded-xl transition-colors shadow-lg text-white ${editingId ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/30' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30'}`}
               >
-                내역 추가하기
+                {editingId ? '수정 완료하기' : '내역 추가하기'}
               </button>
             </form>
           </div>
@@ -605,13 +669,22 @@ export default function App() {
                         {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
                       </td>
                       <td className="py-3 text-center">
-                        <button
-                          onClick={() => handleDeleteTransaction(t.id)}
-                          className="p-1 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
-                          title="삭제"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => handleEditClick(t)}
+                            className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                            title="수정"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransaction(t.id)}
+                            className="p-1 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+                            title="삭제"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -654,9 +727,17 @@ export default function App() {
                       </div>
                       <p className="text-slate-800 dark:text-slate-200">{t.description || '메모 없음'}</p>
                     </div>
-                    <span className={`font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
+                      </span>
+                      <button
+                        onClick={() => handleEditClick(t)}
+                        className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg transition-colors"
+                      >
+                        수정
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
