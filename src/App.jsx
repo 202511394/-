@@ -3,10 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, 
   Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, 
-  Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3
+  Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3, 
+  ChevronLeft, ChevronRight, LayoutList, CalendarDays
 } from 'lucide-react';
 
-// Supabase 클라이언트 초기화 (환경 변수 또는 직접 입력)
+// Supabase 클라이언트 초기화
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -18,7 +19,7 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
-  // 테마 상태 관리 ('dark' 또는 'light')
+  // 테마 상태 관리
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
     if (saved) {
@@ -33,18 +34,19 @@ export default function App() {
     return 'dark';
   });
 
-  // 팝업(모달) 관련 상태 ('income', 'expense', 'balance' 또는 null)
+  // 팝업(모달) 상태
   const [modalType, setModalType] = useState(null);
+  const [selectedDateTransactions, setSelectedDateTransactions] = useState(null); // 캘린더 날짜 클릭 시 상세 팝업
 
   // 거래 입력 및 수정 폼 상태
-  const [editingId, setEditingId] = useState(null); // 👈 수정 중인 거래 ID (null이면 추가 모드)
+  const [editingId, setEditingId] = useState(null);
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('식비');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // 고정지출 입력 폼 상태
+  // 고정지출 폼 상태
   const [recTitle, setRecTitle] = useState('');
   const [recAmount, setRecAmount] = useState('');
   const [recDate, setRecDate] = useState('25');
@@ -52,6 +54,8 @@ export default function App() {
   // UI 필터 및 설정 상태
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [viewMode, setViewMode] = useState('list'); // 'list' 또는 'calendar'
+  const [currentDate, setCurrentDate] = useState(new Date()); // 캘린더 현재 연/월
   const [hideRanking, setHideRanking] = useState(() => {
     return localStorage.getItem('hide_ranking') === 'true';
   });
@@ -130,7 +134,6 @@ export default function App() {
     }
   };
 
-  // 랭킹 숨김 토글 핸들러
   const handleToggleHideRanking = () => {
     const nextVal = !hideRanking;
     setHideRanking(nextVal);
@@ -142,47 +145,29 @@ export default function App() {
     }
   };
 
-  // 거래 내역 추가 또는 수정 제출
   const handleSubmitTransaction = async (e) => {
     e.preventDefault();
     if (!amount || !category) return;
 
     if (editingId) {
-      // 수정 모드
       const { error } = await supabase
         .from('transactions')
-        .update({
-          type,
-          amount: parseFloat(amount),
-          category,
-          description,
-          date,
-        })
+        .update({ type, amount: parseFloat(amount), category, description, date })
         .eq('id', editingId);
 
-      if (error) {
-        alert('수정 실패: ' + error.message);
-      } else {
+      if (error) alert('수정 실패: ' + error.message);
+      else {
         resetForm();
         fetchTransactions();
         fetchRankings();
       }
     } else {
-      // 추가 모드
       const { error } = await supabase.from('transactions').insert([
-        {
-          user_id: session.user.id,
-          type,
-          amount: parseFloat(amount),
-          category,
-          description,
-          date,
-        },
+        { user_id: session.user.id, type, amount: parseFloat(amount), category, description, date }
       ]);
 
-      if (error) {
-        alert('추가 실패: ' + error.message);
-      } else {
+      if (error) alert('추가 실패: ' + error.message);
+      else {
         resetForm();
         fetchTransactions();
         fetchRankings();
@@ -190,7 +175,6 @@ export default function App() {
     }
   };
 
-  // 폼 초기화 및 수정 모드 해제
   const resetForm = () => {
     setEditingId(null);
     setAmount('');
@@ -198,7 +182,6 @@ export default function App() {
     setDate(new Date().toISOString().split('T')[0]);
   };
 
-  // 특정 거래를 수정 상태로 설정
   const handleEditClick = (t) => {
     setEditingId(t.id);
     setType(t.type);
@@ -206,13 +189,11 @@ export default function App() {
     setCategory(t.category);
     setDescription(t.description || '');
     setDate(t.date);
-    // 모달이 열려있다면 닫아주기
     setModalType(null);
-    // 화면 상단 입력폼으로 부드럽게 스크롤
+    setSelectedDateTransactions(null);
     window.scrollTo({ top: 200, behavior: 'smooth' });
   };
 
-  // 거래 내역 삭제
   const handleDeleteTransaction = async (id) => {
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (error) {
@@ -221,43 +202,34 @@ export default function App() {
       if (editingId === id) resetForm();
       fetchTransactions();
       fetchRankings();
+      if (selectedDateTransactions) {
+        setSelectedDateTransactions(prev => prev.filter(item => item.id !== id));
+      }
     }
   };
 
-  // 고정지출 추가
   const handleAddRecurring = async (e) => {
     e.preventDefault();
     if (!recTitle || !recAmount) return;
 
     const { error } = await supabase.from('recurring_expenses').insert([
-      {
-        user_id: session.user.id,
-        title: recTitle,
-        amount: parseFloat(recAmount),
-        pay_date: parseInt(recDate),
-      },
+      { user_id: session.user.id, title: recTitle, amount: parseFloat(recAmount), pay_date: parseInt(recDate) }
     ]);
 
-    if (error) {
-      alert('고정지출 추가 실패: ' + error.message);
-    } else {
+    if (error) alert('고정지출 추가 실패: ' + error.message);
+    else {
       setRecTitle('');
       setRecAmount('');
       fetchRecurring();
     }
   };
 
-  // 고정지출 삭제
   const handleDeleteRecurring = async (id) => {
     const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
-    if (error) {
-      alert('삭제 실패: ' + error.message);
-    } else {
-      fetchRecurring();
-    }
+    if (error) alert('삭제 실패: ' + error.message);
+    else fetchRecurring();
   };
 
-  // 회원탈퇴 기능
   const handleDeleteAccount = async () => {
     const confirmed = window.confirm("정말 탈퇴하시겠습니까? 모든 자산 기록이 영구적으로 삭제되며 복구할 수 없습니다.");
     if (!confirmed) return;
@@ -283,11 +255,9 @@ export default function App() {
     );
   }
 
-  if (!session) {
-    return <AuthView />;
-  }
+  if (!session) return <AuthView />;
 
-  // 계산 로직
+  // 자산 계산
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
   const netBalance = totalIncome - totalExpense;
@@ -303,6 +273,23 @@ export default function App() {
     if (modalType === 'expense') return transactions.filter(t => t.type === 'expense');
     if (modalType === 'balance') return transactions;
     return [];
+  };
+
+  // 캘린더 관련 계산 로직
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth(); // 0~11
+  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 요일 (0: 일요일)
+  const daysInMonth = new Date(year, month + 1, 0).getDate(); // 해당 월의 총 일수
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  // 날짜별 거래 내역 매핑 헬퍼 (YYYY-MM-DD 형식)
+  const getTransactionsForDay = (day) => {
+    const formattedMonth = String(month + 1).padStart(2, '0');
+    const formattedDay = String(day).padStart(2, '0');
+    const dateStr = `${year}-${formattedMonth}-${formattedDay}`;
+    return transactions.filter(t => t.date === dateStr);
   };
 
   return (
@@ -330,11 +317,9 @@ export default function App() {
             >
               {theme === 'dark' ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-indigo-600" />}
             </button>
-
             <button 
               onClick={handleDeleteAccount}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-xs font-semibold text-rose-500 dark:text-rose-400 transition-colors"
-              title="계정 삭제 및 회원탈퇴"
             >
               <UserX size={14} /> <span className="hidden sm:inline">회원탈퇴</span>
             </button>
@@ -353,28 +338,19 @@ export default function App() {
         
         {/* 요약 카드 영역 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div 
-            onClick={() => setModalType('balance')}
-            className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all"
-          >
+          <div onClick={() => setModalType('balance')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all">
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">총 자산 잔액 (클릭하여 전체보기)</p>
             <h2 className={`text-2xl font-black mt-1 ${netBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
               ₩ {netBalance.toLocaleString()}
             </h2>
           </div>
-          <div 
-            onClick={() => setModalType('income')}
-            className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-emerald-500/50 transition-all"
-          >
+          <div onClick={() => setModalType('income')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-emerald-500/50 transition-all">
             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
               <TrendingUp size={14} /> 총 수입 (클릭하여 내역보기)
             </p>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {totalIncome.toLocaleString()}</h2>
           </div>
-          <div 
-            onClick={() => setModalType('expense')}
-            className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-rose-500/50 transition-all"
-          >
+          <div onClick={() => setModalType('expense')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-rose-500/50 transition-all">
             <p className="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
               <TrendingDown size={14} /> 총 지출 (클릭하여 내역보기)
             </p>
@@ -400,11 +376,7 @@ export default function App() {
                 )}
               </h3>
               {editingId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="text-xs text-slate-500 dark:text-slate-400 hover:underline"
-                >
+                <button type="button" onClick={resetForm} className="text-xs text-slate-500 dark:text-slate-400 hover:underline">
                   수정 취소
                 </button>
               )}
@@ -530,7 +502,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/60">
               * 지출이 적은 순서대로 10명이 노출됩니다.
             </p>
@@ -574,10 +545,7 @@ export default function App() {
               />
               <span className="text-xs text-slate-500 dark:text-slate-400">일</span>
             </div>
-            <button
-              type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl py-2 transition-colors shadow-lg shadow-indigo-600/20"
-            >
+            <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl py-2 transition-colors shadow-lg shadow-indigo-600/20">
               고정지출 추가
             </button>
           </form>
@@ -589,17 +557,12 @@ export default function App() {
               recurringList.map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/50 rounded-xl text-xs">
                   <div className="flex items-center gap-3">
-                    <span className="px-2 py-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg">
-                      매월 {item.pay_date}일
-                    </span>
+                    <span className="px-2 py-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg">매월 {item.pay_date}일</span>
                     <span className="text-slate-800 dark:text-slate-200 font-medium">{item.title}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-rose-600 dark:text-rose-400">₩ {Number(item.amount).toLocaleString()}</span>
-                    <button
-                      onClick={() => handleDeleteRecurring(item.id)}
-                      className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
-                    >
+                    <button onClick={() => handleDeleteRecurring(item.id)} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -609,92 +572,241 @@ export default function App() {
           </div>
         </div>
 
-        {/* 내역 목록 테이블 및 검색/필터 */}
+        {/* 내역 보기 영역 (목록 뷰 / 캘린더 뷰 전환 기능) */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">상세 거래 내역</h3>
-            
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1 sm:w-60">
-                <Search size={14} className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="내역 또는 카테고리 검색"
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                />
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">상세 거래 내역</h3>
+              {/* 보기 모드 전환 버튼 */}
+              <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  <LayoutList size={13} /> 목록
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${viewMode === 'calendar' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  <CalendarDays size={13} /> 달력
+                </button>
               </div>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-              >
-                <option value="all">전체</option>
-                <option value="expense">지출만</option>
-                <option value="income">수입만</option>
-              </select>
             </div>
+
+            {/* 목록 뷰일 때만 검색 및 필터 표시 */}
+            {viewMode === 'list' && (
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 sm:w-60">
+                  <Search size={14} className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="내역 또는 카테고리 검색"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">전체</option>
+                  <option value="expense">지출만</option>
+                  <option value="income">수입만</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                  <th className="pb-3 font-medium">날짜</th>
-                  <th className="pb-3 font-medium">분류</th>
-                  <th className="pb-3 font-medium">메모</th>
-                  <th className="pb-3 font-medium text-right">금액</th>
-                  <th className="pb-3 font-medium text-center">관리</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50">
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="text-center py-8 text-slate-400 dark:text-slate-500">
-                      등록된 거래 내역이 없습니다.
-                    </td>
+          {/* 목록 뷰 (List View) */}
+          {viewMode === 'list' && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                    <th className="pb-3 font-medium">날짜</th>
+                    <th className="pb-3 font-medium">분류</th>
+                    <th className="pb-3 font-medium">메모</th>
+                    <th className="pb-3 font-medium text-right">금액</th>
+                    <th className="pb-3 font-medium text-center">관리</th>
                   </tr>
-                ) : (
-                  filteredTransactions.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/40 transition-colors">
-                      <td className="py-3 text-slate-500 dark:text-slate-400">{t.date}</td>
-                      <td className="py-3">
-                        <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-medium">
-                          {t.category}
-                        </span>
-                      </td>
-                      <td className="py-3 text-slate-700 dark:text-slate-300">{t.description || '-'}</td>
-                      <td className={`py-3 text-right font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-100'}`}>
-                        {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
-                      </td>
-                      <td className="py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleEditClick(t)}
-                            className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                            title="수정"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTransaction(t.id)}
-                            className="p-1 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
-                            title="삭제"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50">
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-8 text-slate-400 dark:text-slate-500">
+                        등록된 거래 내역이 없습니다.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    filteredTransactions.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-950/40 transition-colors">
+                        <td className="py-3 text-slate-500 dark:text-slate-400">{t.date}</td>
+                        <td className="py-3">
+                          <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-medium">
+                            {t.category}
+                          </span>
+                        </td>
+                        <td className="py-3 text-slate-700 dark:text-slate-300">{t.description || '-'}</td>
+                        <td className={`py-3 text-right font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-100'}`}>
+                          {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
+                        </td>
+                        <td className="py-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button onClick={() => handleEditClick(t)} className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="수정">
+                              <Edit3 size={14} />
+                            </button>
+                            <button onClick={() => handleDeleteTransaction(t.id)} className="p-1 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors" title="삭제">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 캘린더 뷰 (Calendar View) */}
+          {viewMode === 'calendar' && (
+            <div className="space-y-4">
+              {/* 캘린더 월 이동 컨트롤 */}
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <button onClick={prevMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                  <ChevronLeft size={16} />
+                </button>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                  {year}년 {month + 1}월
+                </h4>
+                <button onClick={nextMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+
+              {/* 요일 헤더 */}
+              <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 dark:text-slate-500 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-rose-500">일</span>
+                <span>월</span>
+                <span>화</span>
+                <span>수</span>
+                <span>목</span>
+                <span>금</span>
+                <span className="text-indigo-500">토</span>
+              </div>
+
+              {/* 날짜 그리드 */}
+              <div className="grid grid-cols-7 gap-1.5">
+                {/* 빈 칸 채우기 (시작 요일 전까지) */}
+                {Array.from({ length: firstDayOfMonth }).map((_, index) => (
+                  <div key={`empty-${index}`} className="h-24 sm:h-28 bg-slate-50/40 dark:bg-slate-950/20 rounded-2xl border border-transparent opacity-30"></div>
+                ))}
+
+                {/* 실제 날짜 칸 채우기 */}
+                {Array.from({ length: daysInMonth }).map((_, index) => {
+                  const day = index + 1;
+                  const dayTransactions = getTransactionsForDay(day);
+                  const dayIncome = dayTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+                  const dayExpense = dayTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
+                  return (
+                    <div
+                      key={`day-${day}`}
+                      onClick={() => setSelectedDateTransactions({ day, list: dayTransactions })}
+                      className="h-24 sm:h-28 bg-slate-50 dark:bg-slate-950/60 hover:bg-indigo-500/5 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-1.5 flex flex-col justify-between cursor-pointer transition-all overflow-hidden group shadow-sm"
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                          {day}
+                        </span>
+                        {dayTransactions.length > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                        )}
+                      </div>
+
+                      <div className="space-y-0.5 overflow-hidden text-[10px]">
+                        {dayIncome > 0 && (
+                          <div className="text-emerald-600 dark:text-emerald-400 font-semibold truncate">
+                            +{dayIncome.toLocaleString()}
+                          </div>
+                        )}
+                        {dayExpense > 0 && (
+                          <div className="text-rose-600 dark:text-rose-400 font-semibold truncate">
+                            -{dayExpense.toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
       </main>
+
+      {/* 캘린더 날짜 클릭 시 나타나는 해당 일자 상세 내역 팝업 */}
+      {selectedDateTransactions && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Calendar size={16} className="text-indigo-600 dark:text-indigo-400" />
+                {year}년 {month + 1}월 {selectedDateTransactions.day}일 상세 내역
+              </h3>
+              <button 
+                onClick={() => setSelectedDateTransactions(null)}
+                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+              {selectedDateTransactions.list.length === 0 ? (
+                <p className="text-center py-10 text-xs text-slate-400 dark:text-slate-500">이 날 등록된 내역이 없습니다.</p>
+              ) : (
+                selectedDateTransactions.list.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/50 rounded-xl text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-850 rounded text-slate-700 dark:text-slate-300 font-medium">{t.category}</span>
+                      </div>
+                      <p className="text-slate-800 dark:text-slate-200">{t.description || '메모 없음'}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => handleEditClick(t)} className="px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg transition-colors">
+                          수정
+                        </button>
+                        <button onClick={() => handleDeleteTransaction(t.id)} className="p-1 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors" title="삭제">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+              <button
+                onClick={() => setSelectedDateTransactions(null)}
+                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 요약 카드 클릭 시 나타나는 상세 내역 팝업 모달 */}
       {modalType && (
@@ -706,10 +818,7 @@ export default function App() {
                 {modalType === 'expense' && <span className="text-rose-600 dark:text-rose-400">지출 상세 내역</span>}
                 {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">전체 자산 상세 내역</span>}
               </h3>
-              <button 
-                onClick={() => setModalType(null)}
-                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors"
-              >
+              <button onClick={() => setModalType(null)} className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors">
                 <X size={16} />
               </button>
             </div>
@@ -731,10 +840,7 @@ export default function App() {
                       <span className={`font-bold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {t.type === 'income' ? '+' : '-'} ₩ {Number(t.amount).toLocaleString()}
                       </span>
-                      <button
-                        onClick={() => handleEditClick(t)}
-                        className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg transition-colors"
-                      >
+                      <button onClick={() => handleEditClick(t)} className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold rounded-lg transition-colors">
                         수정
                       </button>
                     </div>
@@ -744,10 +850,7 @@ export default function App() {
             </div>
 
             <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-              <button
-                onClick={() => setModalType(null)}
-                className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs rounded-xl transition-colors"
-              >
+              <button onClick={() => setModalType(null)} className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs rounded-xl transition-colors">
                 닫기
               </button>
             </div>
@@ -815,20 +918,13 @@ function AuthView() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30"
-          >
+          <button type="submit" disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
             {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-          >
+          <button onClick={() => setIsSignUp(!isSignUp)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
             {isSignUp ? '이미 계정이 있으신가요? 로그인하기' : '계정이 없으신가요? 회원가입하기'}
           </button>
         </div>
