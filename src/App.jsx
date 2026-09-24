@@ -36,7 +36,7 @@ export default function App() {
 
   // 팝업(모달) 상태
   const [modalType, setModalType] = useState(null);
-  const [selectedDateTransactions, setSelectedDateTransactions] = useState(null); // 캘린더 날짜 클릭 시 상세 팝업
+  const [selectedDateTransactions, setSelectedDateTransactions] = useState(null);
 
   // 거래 입력 및 수정 폼 상태
   const [editingId, setEditingId] = useState(null);
@@ -54,8 +54,8 @@ export default function App() {
   // UI 필터 및 설정 상태
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [viewMode, setViewMode] = useState('list'); // 'list' 또는 'calendar'
-  const [currentDate, setCurrentDate] = useState(new Date()); // 캘린더 현재 연/월
+  const [viewMode, setViewMode] = useState('list');
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [hideRanking, setHideRanking] = useState(() => {
     return localStorage.getItem('hide_ranking') === 'true';
   });
@@ -91,14 +91,78 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 데이터 불러오기
+  // 데이터 불러오기 및 고정지출 자동 반영 체크
   useEffect(() => {
     if (session) {
-      fetchTransactions();
-      fetchRankings();
-      fetchRecurring();
+      initAppData();
     }
   }, [session, hideRanking]);
+
+  const initAppData = async () => {
+    await fetchRecurringAndProcess();
+    await fetchTransactions();
+    fetchRankings();
+  };
+
+  // 고정지출을 불러오고, 날짜가 지났으면 이번 달 지출 내역에 자동 추가하는 로직
+  const fetchRecurringAndProcess = async () => {
+    const { data: recData, error: recError } = await supabase
+      .from('recurring_expenses')
+      .select('*')
+      .order('pay_date', { ascending: true });
+
+    if (recError) {
+      console.error('고정지출 조회 에러:', recError.message);
+      return;
+    }
+    setRecurringList(recData || []);
+
+    if (!recData || recData.length === 0) return;
+
+    // 현재 년-월 (예: "2026-09")
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentDay = now.getDate();
+    const formattedMonth = String(currentMonth).padStart(2, '0');
+
+    // 이미 이번 달에 등록된 거래 내역 불러오기
+    const { data: txData, error: txError } = await supabase
+      .from('transactions')
+      .select('*');
+
+    if (txError) return;
+    const existingTransactions = txData || [];
+
+    // 각 고정지출에 대해 이번 달 날짜가 지났는지 확인
+    for (const rec of recData) {
+      // pay_date가 현재 날짜 이상이고, 해당 월에 아직 반영되지 않았다면 추가
+      if (currentDay >= rec.pay_date) {
+        const formattedDay = String(rec.pay_date).padStart(2, '0');
+        const targetDate = `${currentYear}-${formattedMonth}-${formattedDay}`;
+        const memoText = `[고정지출] ${rec.title}`;
+
+        // 이미 이번 달 해당 날짜에 이 고정지출 이름으로 등록된 내역이 있는지 확인
+        const alreadyExists = existingTransactions.some(
+          t => t.date === targetDate && t.description === memoText && t.amount === rec.amount
+        );
+
+        if (!alreadyExists) {
+          // 자동으로 지출 내역에 인서트
+          await supabase.from('transactions').insert([
+            {
+              user_id: session.user.id,
+              type: 'expense',
+              amount: rec.amount,
+              category: '주거/통신', // 기본 카테고리
+              description: memoText,
+              date: targetDate
+            }
+          ]);
+        }
+      }
+    }
+  };
 
   const fetchTransactions = async () => {
     const { data, error } = await supabase
@@ -108,16 +172,6 @@ export default function App() {
 
     if (error) console.error('트랜잭션 조회 에러:', error.message);
     else setTransactions(data || []);
-  };
-
-  const fetchRecurring = async () => {
-    const { data, error } = await supabase
-      .from('recurring_expenses')
-      .select('*')
-      .order('pay_date', { ascending: true });
-
-    if (error) console.error('고정지출 조회 에러:', error.message);
-    else setRecurringList(data || []);
   };
 
   const fetchRankings = async () => {
@@ -203,7 +257,10 @@ export default function App() {
       fetchTransactions();
       fetchRankings();
       if (selectedDateTransactions) {
-        setSelectedDateTransactions(prev => prev.filter(item => item.id !== id));
+        setSelectedDateTransactions(prev => ({
+          ...prev,
+          list: prev.list.filter(item => item.id !== id)
+        }));
       }
     }
   };
@@ -220,14 +277,14 @@ export default function App() {
     else {
       setRecTitle('');
       setRecAmount('');
-      fetchRecurring();
+      initAppData(); // 다시 불러오고 조건에 맞으면 바로 반영
     }
   };
 
   const handleDeleteRecurring = async (id) => {
     const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
     if (error) alert('삭제 실패: ' + error.message);
-    else fetchRecurring();
+    else initAppData();
   };
 
   const handleDeleteAccount = async () => {
@@ -277,14 +334,13 @@ export default function App() {
 
   // 캘린더 관련 계산 로직
   const year = currentDate.getFullYear();
-  const month = currentDate.getMonth(); // 0~11
-  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 요일 (0: 일요일)
-  const daysInMonth = new Date(year, month + 1, 0).getDate(); // 해당 월의 총 일수
+  const month = currentDate.getMonth(); 
+  const firstDayOfMonth = new Date(year, month, 1).getDay(); 
+  const daysInMonth = new Date(year, month + 1, 0).getDate(); 
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  // 날짜별 거래 내역 매핑 헬퍼 (YYYY-MM-DD 형식)
   const getTransactionsForDay = (day) => {
     const formattedMonth = String(month + 1).padStart(2, '0');
     const formattedDay = String(day).padStart(2, '0');
@@ -511,9 +567,14 @@ export default function App() {
 
         {/* 고정지출 관리 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <Repeat size={16} className="text-indigo-600 dark:text-indigo-400" /> 고정지출 관리 (월 정기 지출)
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <Repeat size={16} className="text-indigo-600 dark:text-indigo-400" /> 고정지출 관리 (월 정기 지출)
+            </h3>
+            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+              * 설정한 날짜가 지나면 자동으로 지출 내역에 반영됩니다.
+            </span>
+          </div>
 
           <form onSubmit={handleAddRecurring} className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <input
@@ -577,7 +638,6 @@ export default function App() {
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="flex items-center gap-3">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">상세 거래 내역</h3>
-              {/* 보기 모드 전환 버튼 */}
               <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
                 <button
                   onClick={() => setViewMode('list')}
@@ -594,7 +654,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 목록 뷰일 때만 검색 및 필터 표시 */}
             {viewMode === 'list' && (
               <div className="flex items-center gap-2">
                 <div className="relative flex-1 sm:w-60">
@@ -620,7 +679,7 @@ export default function App() {
             )}
           </div>
 
-          {/* 목록 뷰 (List View) */}
+          {/* 목록 뷰 */}
           {viewMode === 'list' && (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -671,10 +730,9 @@ export default function App() {
             </div>
           )}
 
-          {/* 캘린더 뷰 (Calendar View) */}
+          {/* 캘린더 뷰 */}
           {viewMode === 'calendar' && (
             <div className="space-y-4">
-              {/* 캘린더 월 이동 컨트롤 */}
               <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <button onClick={prevMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
                   <ChevronLeft size={16} />
@@ -687,7 +745,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 요일 헤더 */}
               <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 dark:text-slate-500 pb-2 border-b border-slate-200 dark:border-slate-800">
                 <span className="text-rose-500">일</span>
                 <span>월</span>
@@ -698,14 +755,11 @@ export default function App() {
                 <span className="text-indigo-500">토</span>
               </div>
 
-              {/* 날짜 그리드 */}
               <div className="grid grid-cols-7 gap-1.5">
-                {/* 빈 칸 채우기 (시작 요일 전까지) */}
                 {Array.from({ length: firstDayOfMonth }).map((_, index) => (
                   <div key={`empty-${index}`} className="h-24 sm:h-28 bg-slate-50/40 dark:bg-slate-950/20 rounded-2xl border border-transparent opacity-30"></div>
                 ))}
 
-                {/* 실제 날짜 칸 채우기 */}
                 {Array.from({ length: daysInMonth }).map((_, index) => {
                   const day = index + 1;
                   const dayTransactions = getTransactionsForDay(day);
@@ -749,7 +803,7 @@ export default function App() {
 
       </main>
 
-      {/* 캘린더 날짜 클릭 시 나타나는 해당 일자 상세 내역 팝업 */}
+      {/* 날짜 상세 팝업 */}
       {selectedDateTransactions && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
@@ -773,9 +827,7 @@ export default function App() {
                 selectedDateTransactions.list.map((t) => (
                   <div key={t.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/50 rounded-xl text-xs">
                     <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-850 rounded text-slate-700 dark:text-slate-300 font-medium">{t.category}</span>
-                      </div>
+                      <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-850 rounded text-slate-700 dark:text-slate-300 font-medium">{t.category}</span>
                       <p className="text-slate-800 dark:text-slate-200">{t.description || '메모 없음'}</p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -808,7 +860,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 요약 카드 클릭 시 나타나는 상세 내역 팝업 모달 */}
+      {/* 요약 카드 팝업 모달 */}
       {modalType && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
@@ -919,7 +971,7 @@ function AuthView() {
           </div>
 
           <button type="submit" disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
-            {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인'}
+            {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인하거나 가입하기'}
           </button>
         </form>
 
