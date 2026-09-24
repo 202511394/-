@@ -18,9 +18,19 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
-  // 테마 상태 관리 ('dark' 또는 'light')
+  // 테마 상태 관리 ('dark' 또는 'light') - 초기화 시 <html> 태그와 즉시 동기화
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'dark';
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      if (saved === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      return saved;
+    }
+    document.documentElement.classList.add('dark');
+    return 'dark';
   });
 
   // 팝업(모달) 관련 상태 ('income', 'expense', 'balance' 또는 null)
@@ -696,18 +706,18 @@ function AuthView() {
           <div className="w-16 h-16 rounded-3xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-700/50 flex items-center justify-center bg-indigo-600 text-white font-bold">
             <Wallet size={32} />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">가계부</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">스마트한 자산 관리와 커뮤니티 랭킹</p>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">스마트 가계부</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">시작하려면 로그인해주세요</p>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
           <div>
-            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일 주소</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="example@email.com"
               required
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
             />
@@ -718,7 +728,7 @@ function AuthView() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="비밀번호를 입력하세요"
               required
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
             />
@@ -727,18 +737,18 @@ function AuthView() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+            className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30"
           >
-            {loading ? '처리 중...' : isSignUp ? '회원가입하기' : '로그인'}
+            {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인'}
           </button>
         </form>
 
-        <div className="text-center mt-6">
+        <div className="mt-6 text-center">
           <button
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
           >
-            {isSignUp ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입'}
+            {isSignUp ? '이미 계정이 있으신가요? 로그인하기' : '계정이 없으신가요? 회원가입하기'}
           </button>
         </div>
       </div>
