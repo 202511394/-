@@ -4,7 +4,7 @@ import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, 
   Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, 
   Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3, 
-  ChevronLeft, ChevronRight, LayoutList, CalendarDays, PieChart
+  ChevronLeft, ChevronRight, LayoutList, CalendarDays, PieChart, Tag
 } from 'lucide-react';
 
 // Supabase 클라이언트 초기화
@@ -19,6 +19,13 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
+  // 카테고리 목록 상태 (로컬 스토리지 연동)
+  const [categories, setCategories] = useState(() => {
+    const saved = localStorage.getItem('custom_categories');
+    return saved ? JSON.parse(saved) : ['식비', '교통', '주거/통신', '문화/여가', '급여', '기타'];
+  });
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   // 테마 상태 관리
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
@@ -42,7 +49,7 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('식비');
+  const [category, setCategory] = useState(categories[0] || '식비');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -76,6 +83,11 @@ export default function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  // 카테고리 변경 시 로컬스토리지 저장
+  useEffect(() => {
+    localStorage.setItem('custom_categories', JSON.stringify(categories));
+  }, [categories]);
+
   // 인증 상태 관리
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -104,17 +116,13 @@ export default function App() {
     fetchRankings();
   };
 
-  // 고정지출을 불러오고, 날짜가 지났으면 이번 달 지출 내역에 자동 추가하는 로직
   const fetchRecurringAndProcess = async () => {
     const { data: recData, error: recError } = await supabase
       .from('recurring_expenses')
       .select('*')
       .order('pay_date', { ascending: true });
 
-    if (recError) {
-      console.error('고정지출 조회 에러:', recError.message);
-      return;
-    }
+    if (recError) return;
     setRecurringList(recData || []);
 
     if (!recData || recData.length === 0) return;
@@ -193,6 +201,32 @@ export default function App() {
     }
   };
 
+  // 카테고리 추가 핸들러
+  const handleAddCategory = (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    if (categories.includes(newCategoryName.trim())) {
+      alert('이미 존재하는 카테고리입니다.');
+      return;
+    }
+    setCategories([...categories, newCategoryName.trim()]);
+    setNewCategoryName('');
+  };
+
+  // 카테고리 삭제 핸들러
+  const handleDeleteCategory = (catToDelete) => {
+    if (categories.length <= 1) {
+      alert('최소 1개 이상의 카테고리가 존재해야 합니다.');
+      return;
+    }
+    if (window.confirm(`'${catToDelete}' 카테고리를 삭제하시겠습니까?`)) {
+      setCategories(categories.filter(c => c !== catToDelete));
+      if (category === catToDelete) {
+        setCategory(categories.filter(c => c !== catToDelete)[0]);
+      }
+    }
+  };
+
   const handleSubmitTransaction = async (e) => {
     e.preventDefault();
     if (!amount || !category) return;
@@ -234,6 +268,9 @@ export default function App() {
     setEditingId(t.id);
     setType(t.type);
     setAmount(t.amount);
+    if (!categories.includes(t.category)) {
+      setCategories(prev => [...prev, t.category]);
+    }
     setCategory(t.category);
     setDescription(t.description || '');
     setDate(t.date);
@@ -313,16 +350,7 @@ export default function App() {
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
   const netBalance = totalIncome - totalExpense;
 
-  // 카테고리별 통계 데이터 계산 (지출 기준)
-  const categoryColors = {
-    '식비': 'bg-amber-500 text-amber-500',
-    '교통': 'bg-blue-500 text-blue-500',
-    '주거/통신': 'bg-indigo-500 text-indigo-500',
-    '문화/여가': 'bg-purple-500 text-purple-500',
-    '급여': 'bg-emerald-500 text-emerald-500',
-    '기타': 'bg-slate-500 text-slate-500',
-  };
-
+  // 카테고리별 통계 데이터 계산
   const expenseTransactions = transactions.filter(t => t.type === 'expense');
   const categoryStats = expenseTransactions.reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -426,7 +454,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* [추가됨] 카테고리별 지출 통계 차트 영역 */}
+        {/* 카테고리별 지출 통계 차트 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <PieChart size={16} className="text-indigo-600 dark:text-indigo-400" /> 카테고리별 지출 통계
@@ -438,11 +466,11 @@ export default function App() {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* 비율 백분율 바 */}
               <div className="w-full h-3 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden flex border border-slate-200 dark:border-slate-800">
-                {sortedCategories.map(([cat, amount]) => {
+                {sortedCategories.map(([cat, amount], index) => {
                   const percentage = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
-                  const colorClass = categoryColors[cat]?.split(' ')[0] || 'bg-slate-400';
+                  const colors = ['bg-amber-500', 'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-rose-500', 'bg-cyan-500'];
+                  const colorClass = colors[index % colors.length];
                   return (
                     <div 
                       key={cat} 
@@ -454,15 +482,15 @@ export default function App() {
                 })}
               </div>
 
-              {/* 상세 내역 리스트 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-2">
-                {sortedCategories.map(([cat, amount]) => {
+                {sortedCategories.map(([cat, amount], index) => {
                   const percentage = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : 0;
-                  const dotColor = categoryColors[cat]?.split(' ')[1] || 'text-slate-400';
+                  const colors = ['bg-amber-500', 'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-rose-500', 'bg-cyan-500'];
+                  const dotColor = colors[index % colors.length];
                   return (
                     <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/50 rounded-xl text-xs">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${dotColor.replace('text-', 'bg-')}`} />
+                        <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`} />
                         <span className="font-medium text-slate-700 dark:text-slate-300">{cat}</span>
                         <span className="text-[10px] text-slate-400 dark:text-slate-500">({percentage}%)</span>
                       </div>
@@ -473,6 +501,42 @@ export default function App() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* [추가됨] 카테고리 관리 영역 */}
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <Tag size={16} className="text-indigo-600 dark:text-indigo-400" /> 카테고리 설정 (추가 및 삭제)
+          </h3>
+
+          <form onSubmit={handleAddCategory} className="flex gap-2">
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="새 카테고리 이름 입력"
+              className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+            />
+            <button type="submit" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors shadow">
+              카테고리 추가
+            </button>
+          </form>
+
+          <div className="flex flex-wrap gap-2 pt-2">
+            {categories.map((cat) => (
+              <div key={cat} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300">
+                <span>{cat}</span>
+                <button 
+                  type="button" 
+                  onClick={() => handleDeleteCategory(cat)} 
+                  className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors ml-1"
+                  title="삭제"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* 입력/수정 폼 & 랭킹 그리드 */}
@@ -536,12 +600,9 @@ export default function App() {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="식비">식비</option>
-                    <option value="교통">교통</option>
-                    <option value="주거/통신">주거/통신</option>
-                    <option value="문화/여가">문화/여가</option>
-                    <option value="급여">급여</option>
-                    <option value="기타">기타</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
               </div>
