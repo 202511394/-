@@ -26,26 +26,16 @@ export default function App() {
   });
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // 테마 상태 관리
+  // 테마 상태 관리 (초기 로드시 로컬스토리지 혹은 html 태그 상태 확인)
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
-    if (saved) {
-      if (saved === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-      return saved;
-    }
-    document.documentElement.classList.add('dark');
-    return 'dark';
+    if (saved) return saved;
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
   });
 
   // 팝업(모달) 상태
   const [modalType, setModalType] = useState(null);
   const [selectedDateTransactions, setSelectedDateTransactions] = useState(null);
-  
-  // [추가됨] 선택된 카테고리별 상세 내역 모달 상태
   const [selectedCategoryModal, setSelectedCategoryModal] = useState(null);
 
   // 거래 입력 및 수정 폼 상태
@@ -70,7 +60,7 @@ export default function App() {
     return localStorage.getItem('hide_ranking') === 'true';
   });
 
-  // 테마 적용 효과
+  // 테마 변경 시 html 태그 클래스 제어 및 로컬스토리지 저장
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -279,7 +269,7 @@ export default function App() {
     setDate(t.date);
     setModalType(null);
     setSelectedDateTransactions(null);
-    setSelectedCategoryModal(null); // 카테고리 모달 닫기
+    setSelectedCategoryModal(null);
     window.scrollTo({ top: 200, behavior: 'smooth' });
   };
 
@@ -353,7 +343,7 @@ export default function App() {
     );
   }
 
-  if (!session) return <AuthView />;
+  if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
 
   // 자산 계산
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -464,7 +454,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 카테고리별 지출 통계 차트 영역 (클릭 기능 추가) */}
+        {/* 카테고리별 지출 통계 차트 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
             <PieChart size={16} className="text-indigo-600 dark:text-indigo-400" /> 카테고리별 지출 통계 (항목 클릭 시 상세 내역 표시)
@@ -776,7 +766,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 내역 보기 영역 (목록 뷰 / 캘린더 뷰 전환 기능) */}
+        {/* 내역 보기 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
             <div className="flex items-center gap-3">
@@ -946,7 +936,7 @@ export default function App() {
 
       </main>
 
-      {/* [추가됨] 카테고리별 상세 내역 팝업 모달 */}
+      {/* 카테고리별 상세 내역 팝업 모달 */}
       {selectedCategoryModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
@@ -1114,7 +1104,7 @@ export default function App() {
 }
 
 // 로그인 및 회원가입 컴포넌트
-function AuthView() {
+function AuthView({ theme, toggleTheme }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1136,7 +1126,17 @@ function AuthView() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-200">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-200 relative">
+      <div className="absolute top-4 right-4">
+        <button 
+          onClick={toggleTheme}
+          className="p-2 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-300 transition-colors shadow"
+          title="테마 전환"
+        >
+          {theme === 'dark' ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-indigo-600" />}
+        </button>
+      </div>
+
       <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur">
         <div className="flex flex-col items-center justify-center space-y-3 mb-8">
           <div className="w-16 h-16 rounded-3xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-700/50 flex items-center justify-center bg-indigo-600 text-white font-bold">
