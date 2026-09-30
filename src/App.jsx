@@ -479,6 +479,11 @@ export default function App() {
 
   if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
 
+  // 전체 거래 내역 기반 총 순수익 계산
+  const totalIncomeAll = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const totalExpenseAll = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const totalNetBalance = totalIncomeAll - totalExpenseAll;
+
   // 현재 선택된 월(Year-Month)에 해당하는 거래 내역 필터링
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); 
@@ -488,10 +493,9 @@ export default function App() {
     return tYear === year && tMonth === (month + 1);
   });
 
-  // 월수입, 월지출, 총 순수익 계산
+  // 월수입, 월지출 계산
   const monthlyIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const monthlyExpense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-  const monthlyNetBalance = monthlyIncome - monthlyExpense;
 
   // 카테고리별 통계 데이터 계산 (현재 선택된 월 기준 지출)
   const expenseTransactions = monthlyTransactions.filter(t => t.type === 'expense');
@@ -519,7 +523,7 @@ export default function App() {
   const getModalData = () => {
     if (modalType === 'income') return monthlyTransactions.filter(t => t.type === 'income');
     if (modalType === 'expense') return monthlyTransactions.filter(t => t.type === 'expense');
-    if (modalType === 'balance') return monthlyTransactions;
+    if (modalType === 'balance') return transactions; // 전체 수입/지출 내역 표시
     return [];
   };
 
@@ -581,12 +585,12 @@ export default function App() {
       {/* 메인 컨테이너 */}
       <main className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
         
-        {/* 요약 카드 영역 (총 순수익, 월수입, 월지출로 반영) */}
+        {/* 요약 카드 영역 (전체 순수익, 월수입, 월지출 반영) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div onClick={() => setModalType('balance')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all">
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{year}년 {month + 1}월 총 순수익 (클릭하여 전체보기)</p>
-            <h2 className={`text-2xl font-black mt-1 ${monthlyNetBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
-              ₩ {monthlyNetBalance.toLocaleString()}
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">전체 누적 순수익 (클릭하여 전체보기)</p>
+            <h2 className={`text-2xl font-black mt-1 ${totalNetBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
+              ₩ {totalNetBalance.toLocaleString()}
             </h2>
           </div>
           <div onClick={() => setModalType('income')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-emerald-500/50 transition-all">
@@ -1222,7 +1226,7 @@ export default function App() {
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {modalType === 'income' && <span className="text-emerald-600 dark:text-emerald-400">{year}년 {month + 1}월 월수입 상세 내역</span>}
                 {modalType === 'expense' && <span className="text-rose-600 dark:text-rose-400">{year}년 {month + 1}월 월지출 상세 내역</span>}
-                {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">{year}년 {month + 1}월 총 순수익 상세 내역</span>}
+                {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">전체 누적 순수익 상세 내역</span>}
               </h3>
               <button onClick={() => setModalType(null)} className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors">
                 <X size={16} />
