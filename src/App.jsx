@@ -162,7 +162,8 @@ export default function App() {
   // 초기 통장 잔액 상태 (localStorage 연동)
   const [initialBalance, setInitialBalance] = useState(() => {
     const saved = localStorage.getItem('initial_balance');
-    return saved ? Number(saved) : 0;
+    const parsedBalance = Number(saved);
+    return saved !== null && Number.isFinite(parsedBalance) ? parsedBalance : 0;
   });
   const [isEditingInitialBalance, setIsEditingInitialBalance] = useState(false);
   const [tempInitialBalance, setTempInitialBalance] = useState(initialBalance);
@@ -197,7 +198,7 @@ export default function App() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [viewMode, setViewMode] = useState('calender');
+  const [viewMode, setViewMode] = useState('calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hideRanking, setHideRanking] = useState(() => {
     return localStorage.getItem('hide_ranking') === 'true';
@@ -606,7 +607,10 @@ export default function App() {
               />
               <button
                 onClick={() => {
-                  setInitialBalance(Number(tempInitialBalance) || 0);
+                  const nextInitialBalance = Number(tempInitialBalance) || 0;
+                  // 상태 업데이트 effect를 기다리지 않고 저장 시점에 즉시 보존한다.
+                  localStorage.setItem('initial_balance', String(nextInitialBalance));
+                  setInitialBalance(nextInitialBalance);
                   setIsEditingInitialBalance(false);
                 }}
                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors"
