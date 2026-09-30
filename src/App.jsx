@@ -52,13 +52,13 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
       {
         data: sortedCategories.map(([_, amount]) => amount),
         backgroundColor: [
-          '#3B82F6', // 파란색
-          '#10B981', // 초록색
-          '#F59E0B', // 주황색
-          '#6366F1', // 인디고
-          '#EC4899', // 핑크
-          '#8B5CF6', // 보라
-          '#9CA3AF', // 회색
+          '#3B82F6', 
+          '#10B981', 
+          '#F59E0B', 
+          '#6366F1', 
+          '#EC4899', 
+          '#8B5CF6', 
+          '#9CA3AF', 
         ],
         borderWidth: 0,
         hoverOffset: 4,
@@ -117,7 +117,6 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
           </div>
         </div>
 
-        {/* 월별 도넛 차트 영역 */}
         <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-2xl">
           <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
             <PieChart size={14} className="text-indigo-500" /> 카테고리별 지출 비중
@@ -165,27 +164,23 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
-  // 카테고리 목록 상태 (로컬 스토리지 연동)
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('custom_categories');
     return saved ? JSON.parse(saved) : ['식비', '교통', '주거/통신', '문화/여가', '급여', '기타'];
   });
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // 테마 상태 관리
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
     if (saved) return saved;
     return document.documentElement.classList.contains('dark') ? 'dark' : 'light';
   });
 
-  // 팝업(모달) 상태
   const [modalType, setModalType] = useState(null);
   const [selectedDateTransactions, setSelectedDateTransactions] = useState(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState(null);
   const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
 
-  // 거래 입력 및 수정 폼 상태
   const [editingId, setEditingId] = useState(null);
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
@@ -193,12 +188,10 @@ export default function App() {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // 고정지출 폼 상태
   const [recTitle, setRecTitle] = useState('');
   const [recAmount, setRecAmount] = useState('');
   const [recDate, setRecDate] = useState('25');
 
-  // UI 필터 및 설정 상태
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [viewMode, setViewMode] = useState('list');
@@ -207,7 +200,6 @@ export default function App() {
     return localStorage.getItem('hide_ranking') === 'true';
   });
 
-  // 테마 변경 시 html 태그 클래스 제어 및 로컬스토리지 저장
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -223,12 +215,10 @@ export default function App() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // 카테고리 변경 시 로컬스토리지 저장
   useEffect(() => {
     localStorage.setItem('custom_categories', JSON.stringify(categories));
   }, [categories]);
 
-  // 인증 상태 관리
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -243,7 +233,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 데이터 불러오기 및 고정지출 자동 반영 체크
   useEffect(() => {
     if (session) {
       initAppData();
@@ -341,7 +330,6 @@ export default function App() {
     }
   };
 
-  // 카테고리 추가 핸들러
   const handleAddCategory = (e) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
@@ -353,7 +341,6 @@ export default function App() {
     setNewCategoryName('');
   };
 
-  // 카테고리 삭제 핸들러
   const handleDeleteCategory = (catToDelete) => {
     if (categories.length <= 1) {
       alert('최소 1개 이상의 카테고리가 존재해야 합니다.');
@@ -492,13 +479,22 @@ export default function App() {
 
   if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
 
-  // 자산 계산
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-  const netBalance = totalIncome - totalExpense;
+  // 현재 선택된 월(Year-Month)에 해당하는 거래 내역 필터링
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth(); 
 
-  // 카테고리별 통계 데이터 계산
-  const expenseTransactions = transactions.filter(t => t.type === 'expense');
+  const monthlyTransactions = transactions.filter(t => {
+    const [tYear, tMonth] = t.date.split('-').map(Number);
+    return tYear === year && tMonth === (month + 1);
+  });
+
+  // 월수입, 월지출, 월 순자산(잔액) 계산
+  const monthlyIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const monthlyExpense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const monthlyNetBalance = monthlyIncome - monthlyExpense;
+
+  // 카테고리별 통계 데이터 계산 (현재 선택된 월 기준 지출)
+  const expenseTransactions = monthlyTransactions.filter(t => t.type === 'expense');
   const categoryStats = expenseTransactions.reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
     return acc;
@@ -507,8 +503,6 @@ export default function App() {
   const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
 
   // 캘린더 관련 계산 로직
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth(); 
   const firstDayOfMonth = new Date(year, month, 1).getDay(); 
   const daysInMonth = new Date(year, month + 1, 0).getDate(); 
 
@@ -516,21 +510,16 @@ export default function App() {
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
   // 목록 뷰 및 검색 필터 (현재 선택된 월 기준으로 필터링)
-  const filteredTransactions = transactions.filter(t => {
+  const filteredTransactions = monthlyTransactions.filter(t => {
     const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterType === 'all' || t.type === filterType;
-    
-    // 현재 선택된 년/월과 일치하는 거래만 추출
-    const [tYear, tMonth] = t.date.split('-').map(Number);
-    const matchesMonth = tYear === year && tMonth === (month + 1);
-
-    return matchesSearch && matchesFilter && matchesMonth;
+    return matchesSearch && matchesFilter;
   });
 
   const getModalData = () => {
-    if (modalType === 'income') return transactions.filter(t => t.type === 'income');
-    if (modalType === 'expense') return transactions.filter(t => t.type === 'expense');
-    if (modalType === 'balance') return transactions;
+    if (modalType === 'income') return monthlyTransactions.filter(t => t.type === 'income');
+    if (modalType === 'expense') return monthlyTransactions.filter(t => t.type === 'expense');
+    if (modalType === 'balance') return monthlyTransactions;
     return [];
   };
 
@@ -592,32 +581,32 @@ export default function App() {
       {/* 메인 컨테이너 */}
       <main className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
         
-        {/* 요약 카드 영역 */}
+        {/* 요약 카드 영역 (월수입, 월지출로 반영) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div onClick={() => setModalType('balance')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all">
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">총 자산 잔액 (클릭하여 전체보기)</p>
-            <h2 className={`text-2xl font-black mt-1 ${netBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
-              ₩ {netBalance.toLocaleString()}
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{year}년 {month + 1}월 순수익 (클릭하여 전체보기)</p>
+            <h2 className={`text-2xl font-black mt-1 ${monthlyNetBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
+              ₩ {monthlyNetBalance.toLocaleString()}
             </h2>
           </div>
           <div onClick={() => setModalType('income')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-emerald-500/50 transition-all">
             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-              <TrendingUp size={14} /> 총 수입 (클릭하여 내역보기)
+              <TrendingUp size={14} /> {year}년 {month + 1}월 월수입 (클릭하여 내역보기)
             </p>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {totalIncome.toLocaleString()}</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {monthlyIncome.toLocaleString()}</h2>
           </div>
           <div onClick={() => setModalType('expense')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-rose-500/50 transition-all">
             <p className="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
-              <TrendingDown size={14} /> 총 지출 (클릭하여 내역보기)
+              <TrendingDown size={14} /> {year}년 {month + 1}월 월지출 (클릭하여 내역보기)
             </p>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {totalExpense.toLocaleString()}</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {monthlyExpense.toLocaleString()}</h2>
           </div>
         </div>
 
         {/* 카테고리별 지출 통계 차트 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-            <PieChart size={16} className="text-indigo-600 dark:text-indigo-400" /> 카테고리별 지출 통계 (항목 클릭 시 상세 내역 표시)
+            <PieChart size={16} className="text-indigo-600 dark:text-indigo-400" /> {year}년 {month + 1}월 카테고리별 지출 통계 (항목 클릭 시 상세 내역 표시)
           </h3>
 
           {sortedCategories.length === 0 ? (
@@ -628,7 +617,7 @@ export default function App() {
             <div className="space-y-3">
               <div className="w-full h-3 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden flex border border-slate-200 dark:border-slate-800">
                 {sortedCategories.map(([cat, amount], index) => {
-                  const percentage = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
+                  const percentage = monthlyExpense > 0 ? (amount / monthlyExpense) * 100 : 0;
                   const colors = ['bg-amber-500', 'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-rose-500', 'bg-cyan-500'];
                   const colorClass = colors[index % colors.length];
                   return (
@@ -648,7 +637,7 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-2">
                 {sortedCategories.map(([cat, amount], index) => {
-                  const percentage = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : 0;
+                  const percentage = monthlyExpense > 0 ? ((amount / monthlyExpense) * 100).toFixed(1) : 0;
                   const colors = ['bg-amber-500', 'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-rose-500', 'bg-cyan-500'];
                   const dotColor = colors[index % colors.length];
                   return (
@@ -1231,9 +1220,9 @@ export default function App() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                {modalType === 'income' && <span className="text-emerald-600 dark:text-emerald-400">수입 상세 내역</span>}
-                {modalType === 'expense' && <span className="text-rose-600 dark:text-rose-400">지출 상세 내역</span>}
-                {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">전체 자산 상세 내역</span>}
+                {modalType === 'income' && <span className="text-emerald-600 dark:text-emerald-400">{year}년 {month + 1}월 월수입 상세 내역</span>}
+                {modalType === 'expense' && <span className="text-rose-600 dark:text-rose-400">{year}년 {month + 1}월 월지출 상세 내역</span>}
+                {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">{year}년 {month + 1}월 순수익 상세 내역</span>}
               </h3>
               <button onClick={() => setModalType(null)} className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors">
                 <X size={16} />
