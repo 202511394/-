@@ -291,7 +291,7 @@ export default function App() {
         );
 
         if (!alreadyExists) {
-          await supabase.from('transactions'].insert([
+          await supabase.from('transactions').insert([
             {
               user_id: session.user.id,
               type: 'expense',
