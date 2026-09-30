@@ -77,11 +77,11 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
           font: {
             size: 11,
           },
-          color: '#94A3B8', // 다크모드 대응 회색톤 텍스트
+          color: '#94A3B8',
         },
       },
     },
-    cutout: '65%', // 도넛 두께 조절
+    cutout: '65%',
   };
 
   return (
@@ -117,7 +117,7 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
           </div>
         </div>
 
-        {/* 월별 도넛 차트 영역 추가 */}
+        {/* 월별 도넛 차트 영역 */}
         <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-2xl">
           <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
             <PieChart size={14} className="text-indigo-500" /> 카테고리별 지출 비중
@@ -172,7 +172,7 @@ export default function App() {
   });
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // 테마 상태 관리 (초기 로드시 로컬스토리지 혹은 html 태그 상태 확인)
+  // 테마 상태 관리
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
     if (saved) return saved;
@@ -183,7 +183,7 @@ export default function App() {
   const [modalType, setModalType] = useState(null);
   const [selectedDateTransactions, setSelectedDateTransactions] = useState(null);
   const [selectedCategoryModal, setSelectedCategoryModal] = useState(null);
-  const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false); // 월별 리포트 모달 토글 상태
+  const [isMonthlyReportOpen, setIsMonthlyReportOpen] = useState(false);
 
   // 거래 입력 및 수정 폼 상태
   const [editingId, setEditingId] = useState(null);
@@ -291,7 +291,7 @@ export default function App() {
         );
 
         if (!alreadyExists) {
-          await supabase.from('transactions').insert([
+          await supabase.from('transactions'].insert([
             {
               user_id: session.user.id,
               type: 'expense',
@@ -506,19 +506,6 @@ export default function App() {
 
   const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
 
-  const filteredTransactions = transactions.filter(t => {
-    const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'all' || t.type === filterType;
-    return matchesSearch && matchesFilter;
-  });
-
-  const getModalData = () => {
-    if (modalType === 'income') return transactions.filter(t => t.type === 'income');
-    if (modalType === 'expense') return transactions.filter(t => t.type === 'expense');
-    if (modalType === 'balance') return transactions;
-    return [];
-  };
-
   // 캘린더 관련 계산 로직
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth(); 
@@ -527,6 +514,25 @@ export default function App() {
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  // 목록 뷰 및 검색 필터 (현재 선택된 월 기준으로 필터링)
+  const filteredTransactions = transactions.filter(t => {
+    const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = filterType === 'all' || t.type === filterType;
+    
+    // 현재 선택된 년/월과 일치하는 거래만 추출
+    const [tYear, tMonth] = t.date.split('-').map(Number);
+    const matchesMonth = tYear === year && tMonth === (month + 1);
+
+    return matchesSearch && matchesFilter && matchesMonth;
+  });
+
+  const getModalData = () => {
+    if (modalType === 'income') return transactions.filter(t => t.type === 'income');
+    if (modalType === 'expense') return transactions.filter(t => t.type === 'expense');
+    if (modalType === 'balance') return transactions;
+    return [];
+  };
 
   const getTransactionsForDay = (day) => {
     const formattedMonth = String(month + 1).padStart(2, '0');
@@ -922,10 +928,23 @@ export default function App() {
 
         {/* 내역 보기 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-            <div className="flex items-center gap-3">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">상세 거래 내역</h3>
-              <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+          
+          {/* 월 선택 및 뷰 모드 통합 컨트롤 바 */}
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50 dark:bg-slate-950 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between sm:justify-start gap-2">
+              <button onClick={prevMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <h4 className="text-sm font-black text-slate-900 dark:text-white px-2">
+                {year}년 {month + 1}월 내역
+              </h4>
+              <button onClick={nextMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
                 <button
                   onClick={() => setViewMode('list')}
                   className={`flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}
@@ -940,8 +959,13 @@ export default function App() {
                 </button>
               </div>
             </div>
+          </div>
 
-            {viewMode === 'list' && (
+          {viewMode === 'list' && (
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {year}년 {month + 1}월 상세 거래 목록
+              </span>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1 sm:w-60">
                   <Search size={14} className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
@@ -963,12 +987,12 @@ export default function App() {
                   <option value="income">수입만</option>
                 </select>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* 목록 뷰 */}
           {viewMode === 'list' && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto pt-2">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
@@ -983,7 +1007,7 @@ export default function App() {
                   {filteredTransactions.length === 0 ? (
                     <tr>
                       <td colSpan="5" className="text-center py-8 text-slate-400 dark:text-slate-500">
-                        등록된 거래 내역이 없습니다.
+                        {year}년 {month + 1}월에 등록된 거래 내역이 없습니다.
                       </td>
                     </tr>
                   ) : (
@@ -1019,19 +1043,7 @@ export default function App() {
 
           {/* 캘린더 뷰 */}
           {viewMode === 'calendar' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <button onClick={prevMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
-                  <ChevronLeft size={16} />
-                </button>
-                <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                  {year}년 {month + 1}월
-                </h4>
-                <button onClick={nextMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
+            <div className="space-y-4 pt-2">
               <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 dark:text-slate-500 pb-2 border-b border-slate-200 dark:border-slate-800">
                 <span className="text-rose-500">일</span>
                 <span>월</span>
