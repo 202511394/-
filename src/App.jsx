@@ -276,6 +276,7 @@ export default function App() {
     const { data: recData, error: recError } = await supabase
       .from('recurring_expenses')
       .select('*')
+      .eq('user_id', session.user.id)
       .order('pay_date', { ascending: true });
 
     if (recError) return;
@@ -291,7 +292,8 @@ export default function App() {
 
     const { data: txData, error: txError } = await supabase
       .from('transactions')
-      .select('*');
+      .select('*')
+      .eq('user_id', session.user.id);
 
     if (txError) return;
     const existingTransactions = txData || [];
@@ -326,6 +328,7 @@ export default function App() {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
+      .eq('user_id', session.user.id)
       .order('date', { ascending: false });
 
     if (error) console.error('트랜잭션 조회 에러:', error.message);
@@ -389,7 +392,8 @@ export default function App() {
       const { error } = await supabase
         .from('transactions')
         .update({ type, amount: parseFloat(amount), category, description, date })
-        .eq('id', editingId);
+        .eq('id', editingId)
+        .eq('user_id', session.user.id);
 
       if (error) alert('수정 실패: ' + error.message);
       else {
@@ -435,7 +439,11 @@ export default function App() {
   };
 
   const handleDeleteTransaction = async (id) => {
-    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', session.user.id);
     if (error) {
       alert('삭제 실패: ' + error.message);
     } else {
@@ -474,7 +482,11 @@ export default function App() {
   };
 
   const handleDeleteRecurring = async (id) => {
-    const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
+    const { error } = await supabase
+      .from('recurring_expenses')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', session.user.id);
     if (error) alert('삭제 실패: ' + error.message);
     else initAppData();
   };
