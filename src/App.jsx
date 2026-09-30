@@ -577,6 +577,15 @@ export default function App() {
     return transactions.filter(t => t.date === dateStr);
   };
 
+  // 작은 화면의 7열 달력에서도 금액이 잘리지 않도록 축약 표기한다.
+  const formatCalendarAmount = (amount) => {
+    if (amount >= 10000) {
+      const value = amount / 10000;
+      return `${value % 1 === 0 ? value : value.toFixed(1)}만`;
+    }
+    return amount.toLocaleString();
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans pb-24 relative transition-colors duration-200">
       {/* 상단 헤더 */}
@@ -1176,9 +1185,9 @@ export default function App() {
                 <span className="text-indigo-500">토</span>
               </div>
 
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                 {Array.from({ length: firstDayOfMonth }).map((_, index) => (
-                  <div key={`empty-${index}`} className="h-24 sm:h-28 bg-slate-50/40 dark:bg-slate-950/20 rounded-2xl border border-transparent opacity-30"></div>
+                  <div key={`empty-${index}`} className="h-16 sm:h-28 bg-slate-50/40 dark:bg-slate-950/20 rounded-lg sm:rounded-2xl border border-transparent opacity-30"></div>
                 ))}
 
                 {Array.from({ length: daysInMonth }).map((_, index) => {
@@ -1191,10 +1200,10 @@ export default function App() {
                     <div
                       key={`day-${day}`}
                       onClick={() => setSelectedDateTransactions({ day, list: dayTransactions })}
-                      className="h-24 sm:h-28 bg-slate-50 dark:bg-slate-950/60 hover:bg-indigo-500/5 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-1.5 flex flex-col justify-between cursor-pointer transition-all overflow-hidden group shadow-sm"
+                      className="h-16 sm:h-28 bg-slate-50 dark:bg-slate-950/60 hover:bg-indigo-500/5 border border-slate-200 dark:border-slate-800/80 rounded-lg sm:rounded-2xl p-1 sm:p-1.5 flex flex-col justify-between cursor-pointer transition-all overflow-hidden group shadow-sm"
                     >
                       <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                        <span className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
                           {day}
                         </span>
                         {dayTransactions.length > 0 && (
@@ -1202,15 +1211,17 @@ export default function App() {
                         )}
                       </div>
 
-                      <div className="space-y-0.5 overflow-hidden text-[10px]">
+                      <div className="space-y-0.5 overflow-hidden text-[9px] sm:text-[10px] leading-none">
                         {dayIncome > 0 && (
                           <div className="text-emerald-600 dark:text-emerald-400 font-semibold truncate">
-                            +{dayIncome.toLocaleString()}
+                            <span className="sm:hidden">+{formatCalendarAmount(dayIncome)}</span>
+                            <span className="hidden sm:inline">+{dayIncome.toLocaleString()}</span>
                           </div>
                         )}
                         {dayExpense > 0 && (
                           <div className="text-rose-600 dark:text-rose-400 font-semibold truncate">
-                            -{dayExpense.toLocaleString()}
+                            <span className="sm:hidden">-{formatCalendarAmount(dayExpense)}</span>
+                            <span className="hidden sm:inline">-{dayExpense.toLocaleString()}</span>
                           </div>
                         )}
                       </div>
