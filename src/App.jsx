@@ -197,7 +197,7 @@ export default function App() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [viewMode, setViewMode] = useState('list');
+  const [viewMode, setViewMode] = useState('calender');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hideRanking, setHideRanking] = useState(() => {
     return localStorage.getItem('hide_ranking') === 'true';
