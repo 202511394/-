@@ -6,6 +6,11 @@ import {
   Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3, 
   ChevronLeft, ChevronRight, LayoutList, CalendarDays, PieChart, Tag, FileText
 } from 'lucide-react';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
+
+// Chart.js 컴포넌트 등록
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 // Supabase 클라이언트 초기화
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
@@ -40,9 +45,48 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
   const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
   const topCategory = sortedCategories.length > 0 ? sortedCategories[0] : null;
 
+  // 도넛 차트 데이터 구성
+  const chartData = {
+    labels: sortedCategories.map(([cat]) => cat),
+    datasets: [
+      {
+        data: sortedCategories.map(([_, amount]) => amount),
+        backgroundColor: [
+          '#3B82F6', // 파란색
+          '#10B981', // 초록색
+          '#F59E0B', // 주황색
+          '#6366F1', // 인디고
+          '#EC4899', // 핑크
+          '#8B5CF6', // 보라
+          '#9CA3AF', // 회색
+        ],
+        borderWidth: 0,
+        hoverOffset: 4,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          boxWidth: 10,
+          font: {
+            size: 11,
+          },
+          color: '#94A3B8', // 다크모드 대응 회색톤 텍스트
+        },
+      },
+    },
+    cutout: '65%', // 도넛 두께 조절
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <FileText size={16} className="text-indigo-600 dark:text-indigo-400" /> 
@@ -71,6 +115,20 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
               ₩ {balance.toLocaleString()}
             </p>
           </div>
+        </div>
+
+        {/* 월별 도넛 차트 영역 추가 */}
+        <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-2xl">
+          <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">
+            <PieChart size={14} className="text-indigo-500" /> 카테고리별 지출 비중
+          </p>
+          {sortedCategories.length === 0 ? (
+            <p className="text-center py-8 text-xs text-slate-400 dark:text-slate-500">지출 데이터가 없습니다.</p>
+          ) : (
+            <div className="relative w-full h-56 flex justify-center items-center">
+              <Doughnut data={chartData} options={chartOptions} />
+            </div>
+          )}
         </div>
 
         <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl space-y-2 text-xs">
