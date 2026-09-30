@@ -248,9 +248,28 @@ export default function App() {
   }, [session, hideRanking]);
 
   const initAppData = async () => {
+    await fetchInitialBalance();
     await fetchRecurringAndProcess();
     await fetchTransactions();
     fetchRankings();
+  };
+
+  const fetchInitialBalance = async () => {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('initial_balance')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('초기자본 조회 실패:', error.message);
+      return;
+    }
+
+    const cloudBalance = Number(data?.initial_balance ?? 0);
+    const nextInitialBalance = Number.isFinite(cloudBalance) ? cloudBalance : 0;
+    localStorage.setItem('initial_balance', String(nextInitialBalance));
+    setInitialBalance(nextInitialBalance);
   };
 
   const fetchRecurringAndProcess = async () => {
@@ -504,6 +523,26 @@ export default function App() {
   const monthlyIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const monthlyExpense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
 
+  // 이전 달과 비교할 수입·지출을 계산한다.
+  const previousDate = new Date(year, month - 1, 1);
+  const previousYear = previousDate.getFullYear();
+  const previousMonth = previousDate.getMonth();
+  const previousMonthTransactions = transactions.filter(t => {
+    const [tYear, tMonth] = t.date.split('-').map(Number);
+    return tYear === previousYear && tMonth === previousMonth + 1;
+  });
+  const previousIncome = previousMonthTransactions
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0);
+  const previousExpense = previousMonthTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0);
+  const incomeChange = monthlyIncome - previousIncome;
+  const expenseChange = monthlyExpense - previousExpense;
+  const expenseChangeRate = previousExpense === 0
+    ? null
+    : (expenseChange / previousExpense) * 100;
+
   const expenseTransactions = monthlyTransactions.filter(t => t.type === 'expense');
   const categoryStats = expenseTransactions.reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -606,9 +645,25 @@ export default function App() {
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
               />
               <button
-                onClick={() => {
+                onClick={async () => {
                   const nextInitialBalance = Number(tempInitialBalance) || 0;
-                  // 상태 업데이트 effect를 기다리지 않고 저장 시점에 즉시 보존한다.
+
+                  const { error } = await supabase
+                    .from('user_settings')
+                    .upsert(
+                      {
+                        user_id: session.user.id,
+                        initial_balance: nextInitialBalance,
+                        updated_at: new Date().toISOString(),
+                      },
+                      { onConflict: 'user_id' }
+                    );
+
+                  if (error) {
+                    alert('초기자본 저장 실패: ' + error.message);
+                    return;
+                  }
+
                   localStorage.setItem('initial_balance', String(nextInitialBalance));
                   setInitialBalance(nextInitialBalance);
                   setIsEditingInitialBalance(false);
@@ -643,7 +698,7 @@ export default function App() {
         </div>
 
         {/* 요약 카드 영역 (전체 남은 자산, 월수입, 월지출 반영) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div onClick={() => setModalType('balance')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all">
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">현재 총 남은 자산 (클릭하여 전체보기)</p>
             <h2 className={`text-2xl font-black mt-1 ${totalNetBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
@@ -661,6 +716,24 @@ export default function App() {
               <TrendingDown size={14} /> {year}년 {month + 1}월 월지출 (클릭하여 내역보기)
             </p>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {monthlyExpense.toLocaleString()}</h2>
+          </div>
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">지난달 대비</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+              수입:{' '}
+              <span className={`font-bold ${incomeChange >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {incomeChange >= 0 ? '+' : ''}₩ {incomeChange.toLocaleString()}
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              지출:{' '}
+              <span className={`font-bold ${expenseChange <= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {expenseChange >= 0 ? '+' : ''}₩ {expenseChange.toLocaleString()}
+              </span>
+              {expenseChangeRate !== null && (
+                <span className="ml-1">({expenseChangeRate >= 0 ? '+' : ''}{expenseChangeRate.toFixed(1)}%)</span>
+              )}
+            </p>
           </div>
         </div>
 
