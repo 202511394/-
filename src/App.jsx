@@ -24,7 +24,6 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // 해당 월(Year-Month)에 해당하는 거래 내역만 필터링
   const monthlyTransactions = transactions.filter(t => {
     const [tYear, tMonth] = t.date.split('-').map(Number);
     return tYear === year && tMonth === (month + 1);
@@ -34,7 +33,6 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
   const expense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
   const balance = income - expense;
 
-  // 카테고리별 지출 계산
   const categoryStats = monthlyTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => {
@@ -45,7 +43,6 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
   const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
   const topCategory = sortedCategories.length > 0 ? sortedCategories[0] : null;
 
-  // 도넛 차트 데이터 구성
   const chartData = {
     labels: sortedCategories.map(([cat]) => cat),
     datasets: [
@@ -74,9 +71,7 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
         position: 'bottom',
         labels: {
           boxWidth: 10,
-          font: {
-            size: 11,
-          },
+          font: { size: 11 },
           color: '#94A3B8',
         },
       },
@@ -164,6 +159,14 @@ export default function App() {
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
   
+  // 초기 통장 잔액 상태 (localStorage 연동)
+  const [initialBalance, setInitialBalance] = useState(() => {
+    const saved = localStorage.getItem('initial_balance');
+    return saved ? Number(saved) : 0;
+  });
+  const [isEditingInitialBalance, setIsEditingInitialBalance] = useState(false);
+  const [tempInitialBalance, setTempInitialBalance] = useState(initialBalance);
+
   const [categories, setCategories] = useState(() => {
     const saved = localStorage.getItem('custom_categories');
     return saved ? JSON.parse(saved) : ['식비', '교통', '주거/통신', '문화/여가', '급여', '기타'];
@@ -218,6 +221,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('custom_categories', JSON.stringify(categories));
   }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem('initial_balance', initialBalance);
+  }, [initialBalance]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -479,10 +486,10 @@ export default function App() {
 
   if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
 
-  // 전체 거래 내역 기반 총 순수익 계산
+  // 전체 거래 내역 기반 총 순수익 계산 및 초기 통장 잔액 반영
   const totalIncomeAll = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpenseAll = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-  const totalNetBalance = totalIncomeAll - totalExpenseAll;
+  const totalNetBalance = initialBalance + totalIncomeAll - totalExpenseAll;
 
   // 현재 선택된 월(Year-Month)에 해당하는 거래 내역 필터링
   const year = currentDate.getFullYear();
@@ -493,11 +500,9 @@ export default function App() {
     return tYear === year && tMonth === (month + 1);
   });
 
-  // 월수입, 월지출 계산
   const monthlyIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const monthlyExpense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
 
-  // 카테고리별 통계 데이터 계산 (현재 선택된 월 기준 지출)
   const expenseTransactions = monthlyTransactions.filter(t => t.type === 'expense');
   const categoryStats = expenseTransactions.reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -506,14 +511,12 @@ export default function App() {
 
   const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
 
-  // 캘린더 관련 계산 로직
   const firstDayOfMonth = new Date(year, month, 1).getDay(); 
   const daysInMonth = new Date(year, month + 1, 0).getDate(); 
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  // 목록 뷰 및 검색 필터 (현재 선택된 월 기준으로 필터링)
   const filteredTransactions = monthlyTransactions.filter(t => {
     const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterType === 'all' || t.type === filterType;
@@ -523,7 +526,7 @@ export default function App() {
   const getModalData = () => {
     if (modalType === 'income') return monthlyTransactions.filter(t => t.type === 'income');
     if (modalType === 'expense') return monthlyTransactions.filter(t => t.type === 'expense');
-    if (modalType === 'balance') return transactions; // 전체 수입/지출 내역 표시
+    if (modalType === 'balance') return transactions;
     return [];
   };
 
@@ -585,10 +588,60 @@ export default function App() {
       {/* 메인 컨테이너 */}
       <main className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
         
-        {/* 요약 카드 영역 (전체 순수익, 월수입, 월지출 반영) */}
+        {/* 초기 통장 잔액 설정 영역 */}
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <DollarSign size={18} className="text-indigo-600 dark:text-indigo-400" />
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">초기 통장 잔액 설정:</span>
+          </div>
+          
+          {isEditingInitialBalance ? (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <input
+                type="number"
+                value={tempInitialBalance}
+                onChange={(e) => setTempInitialBalance(e.target.value)}
+                placeholder="금액 입력"
+                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              />
+              <button
+                onClick={() => {
+                  setInitialBalance(Number(tempInitialBalance) || 0);
+                  setIsEditingInitialBalance(false);
+                }}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                저장
+              </button>
+              <button
+                onClick={() => setIsEditingInitialBalance(false)}
+                className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+              <span className="text-sm font-black text-slate-900 dark:text-white">
+                ₩ {initialBalance.toLocaleString()}
+              </span>
+              <button
+                onClick={() => {
+                  setTempInitialBalance(initialBalance);
+                  setIsEditingInitialBalance(true);
+                }}
+                className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-bold text-xs rounded-xl transition-colors"
+              >
+                금액 수정
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 요약 카드 영역 (전체 남은 자산, 월수입, 월지출 반영) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div onClick={() => setModalType('balance')} className="p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl backdrop-blur cursor-pointer hover:border-indigo-500/50 transition-all">
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">전체 누적 순수익 (클릭하여 전체보기)</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">현재 총 남은 자산 (클릭하여 전체보기)</p>
             <h2 className={`text-2xl font-black mt-1 ${totalNetBalance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500 dark:text-rose-400'}`}>
               ₩ {totalNetBalance.toLocaleString()}
             </h2>
@@ -922,7 +975,6 @@ export default function App() {
         {/* 내역 보기 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
           
-          {/* 월 선택 및 뷰 모드 통합 컨트롤 바 */}
           <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50 dark:bg-slate-950 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between sm:justify-start gap-2">
               <button onClick={prevMonth} className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
@@ -1226,7 +1278,7 @@ export default function App() {
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {modalType === 'income' && <span className="text-emerald-600 dark:text-emerald-400">{year}년 {month + 1}월 월수입 상세 내역</span>}
                 {modalType === 'expense' && <span className="text-rose-600 dark:text-rose-400">{year}년 {month + 1}월 월지출 상세 내역</span>}
-                {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">전체 누적 순수익 상세 내역</span>}
+                {modalType === 'balance' && <span className="text-indigo-600 dark:text-indigo-400">전체 자산 상세 내역 (초기 잔액 포함)</span>}
               </h3>
               <button onClick={() => setModalType(null)} className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors">
                 <X size={16} />
@@ -1234,6 +1286,12 @@ export default function App() {
             </div>
 
             <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+              {modalType === 'balance' && (
+                <div className="flex items-center justify-between p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs mb-2">
+                  <span className="font-bold text-indigo-700 dark:text-indigo-300">초기 통장 잔액 설정값</span>
+                  <span className="font-bold text-indigo-700 dark:text-indigo-300">₩ {initialBalance.toLocaleString()}</span>
+                </div>
+              )}
               {getModalData().length === 0 ? (
                 <p className="text-center py-10 text-xs text-slate-400 dark:text-slate-500">해당 내역이 없습니다.</p>
               ) : (
