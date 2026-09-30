@@ -4,13 +4,82 @@ import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, 
   Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, 
   Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3, 
-  ChevronLeft, ChevronRight, LayoutList, CalendarDays, PieChart, Tag
+  ChevronLeft, ChevronRight, LayoutList, CalendarDays, PieChart, Tag, FileText
 } from 'lucide-react';
 
 // Supabase 클라이언트 초기화
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/**
+ * 월별 리포트 컴포넌트
+ */
+function MonthlyReport({ transactions, currentDate }) {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  // 해당 월(Year-Month)에 해당하는 거래 내역만 필터링
+  const monthlyTransactions = transactions.filter(t => {
+    const [tYear, tMonth] = t.date.split('-').map(Number);
+    return tYear === year && tMonth === (month + 1);
+  });
+
+  const income = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+  const expense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const balance = income - expense;
+
+  // 카테고리별 지출 계산
+  const categoryStats = monthlyTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] || 0) + t.amount;
+      return acc;
+    }, {});
+
+  const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
+  const topCategory = sortedCategories.length > 0 ? sortedCategories[0] : null;
+
+  return (
+    <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
+      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+        <FileText size={16} className="text-indigo-600 dark:text-indigo-400" /> 
+        {year}년 {month + 1}월 월별 리포트 요약
+      </h3>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">이달의 수입</p>
+          <p className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">₩ {income.toLocaleString()}</p>
+        </div>
+        <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">이달의 지출</p>
+          <p className="text-base font-bold text-rose-600 dark:text-rose-400 mt-0.5">₩ {expense.toLocaleString()}</p>
+        </div>
+        <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">이달의 순수익</p>
+          <p className={`text-base font-bold mt-0.5 ${balance >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-500'}`}>
+            ₩ {balance.toLocaleString()}
+          </p>
+        </div>
+      </div>
+
+      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl space-y-2 text-xs">
+        <p className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+          <Sparkles size={14} className="text-amber-500" /> AI 소비 패턴 분석 피드백
+        </p>
+        {monthlyTransactions.length === 0 ? (
+          <p className="text-slate-500 dark:text-slate-400">선택하신 월에 등록된 거래 내역이 없습니다. 내역을 추가해 보세요!</p>
+        ) : (
+          <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+            이번 달 가장 많은 지출이 발생한 카테고리는 <span className="font-bold text-indigo-600 dark:text-indigo-400">'{topCategory ? topCategory[0] : '없음'}'</span>(₩ {topCategory ? topCategory[1].toLocaleString() : 0})입니다. 
+            {topCategory && topCategory[1] > expense * 0.4 ? ' 해당 항목의 지출 비중이 다소 높으므로 다음 달 예산 조정 시 참고해 보세요.' : ' 지출 분포가 비교적 안정적으로 관리되고 있습니다!'}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -453,6 +522,9 @@ export default function App() {
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {totalExpense.toLocaleString()}</h2>
           </div>
         </div>
+
+        {/* 월별 리포트 컴포넌트 통합 */}
+        <MonthlyReport transactions={transactions} currentDate={currentDate} />
 
         {/* 카테고리별 지출 통계 차트 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
