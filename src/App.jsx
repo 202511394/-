@@ -4,7 +4,7 @@ import {
   Wallet, TrendingUp, TrendingDown, PlusCircle, Trash2, 
   Search, Calendar, DollarSign, Sparkles, LogOut, Trophy, 
   Repeat, X, Eye, EyeOff, UserX, Sun, Moon, Edit3, 
-  ChevronLeft, ChevronRight, LayoutList, CalendarDays
+  ChevronLeft, ChevronRight, LayoutList, CalendarDays, PieChart
 } from 'lucide-react';
 
 // Supabase 클라이언트 초기화
@@ -119,14 +119,12 @@ export default function App() {
 
     if (!recData || recData.length === 0) return;
 
-    // 현재 년-월 (예: "2026-09")
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
     const currentDay = now.getDate();
     const formattedMonth = String(currentMonth).padStart(2, '0');
 
-    // 이미 이번 달에 등록된 거래 내역 불러오기
     const { data: txData, error: txError } = await supabase
       .from('transactions')
       .select('*');
@@ -134,27 +132,23 @@ export default function App() {
     if (txError) return;
     const existingTransactions = txData || [];
 
-    // 각 고정지출에 대해 이번 달 날짜가 지났는지 확인
     for (const rec of recData) {
-      // pay_date가 현재 날짜 이상이고, 해당 월에 아직 반영되지 않았다면 추가
       if (currentDay >= rec.pay_date) {
         const formattedDay = String(rec.pay_date).padStart(2, '0');
         const targetDate = `${currentYear}-${formattedMonth}-${formattedDay}`;
         const memoText = `[고정지출] ${rec.title}`;
 
-        // 이미 이번 달 해당 날짜에 이 고정지출 이름으로 등록된 내역이 있는지 확인
         const alreadyExists = existingTransactions.some(
           t => t.date === targetDate && t.description === memoText && t.amount === rec.amount
         );
 
         if (!alreadyExists) {
-          // 자동으로 지출 내역에 인서트
           await supabase.from('transactions').insert([
             {
               user_id: session.user.id,
               type: 'expense',
               amount: rec.amount,
-              category: '주거/통신', // 기본 카테고리
+              category: '주거/통신',
               description: memoText,
               date: targetDate
             }
@@ -277,7 +271,7 @@ export default function App() {
     else {
       setRecTitle('');
       setRecAmount('');
-      initAppData(); // 다시 불러오고 조건에 맞으면 바로 반영
+      initAppData();
     }
   };
 
@@ -318,6 +312,24 @@ export default function App() {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
   const netBalance = totalIncome - totalExpense;
+
+  // 카테고리별 통계 데이터 계산 (지출 기준)
+  const categoryColors = {
+    '식비': 'bg-amber-500 text-amber-500',
+    '교통': 'bg-blue-500 text-blue-500',
+    '주거/통신': 'bg-indigo-500 text-indigo-500',
+    '문화/여가': 'bg-purple-500 text-purple-500',
+    '급여': 'bg-emerald-500 text-emerald-500',
+    '기타': 'bg-slate-500 text-slate-500',
+  };
+
+  const expenseTransactions = transactions.filter(t => t.type === 'expense');
+  const categoryStats = expenseTransactions.reduce((acc, t) => {
+    acc[t.category] = (acc[t.category] || 0) + t.amount;
+    return acc;
+  }, {});
+
+  const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1] - a[1]);
 
   const filteredTransactions = transactions.filter(t => {
     const matchesSearch = t.description?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category.toLowerCase().includes(searchTerm.toLowerCase());
@@ -412,6 +424,55 @@ export default function App() {
             </p>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">₩ {totalExpense.toLocaleString()}</h2>
           </div>
+        </div>
+
+        {/* [추가됨] 카테고리별 지출 통계 차트 영역 */}
+        <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <PieChart size={16} className="text-indigo-600 dark:text-indigo-400" /> 카테고리별 지출 통계
+          </h3>
+
+          {sortedCategories.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-400 dark:text-slate-500">
+              분석할 지출 데이터가 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* 비율 백분율 바 */}
+              <div className="w-full h-3 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden flex border border-slate-200 dark:border-slate-800">
+                {sortedCategories.map(([cat, amount]) => {
+                  const percentage = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
+                  const colorClass = categoryColors[cat]?.split(' ')[0] || 'bg-slate-400';
+                  return (
+                    <div 
+                      key={cat} 
+                      style={{ width: `${percentage}%` }} 
+                      className={`h-full ${colorClass} transition-all duration-500`}
+                      title={`${cat}: ₩ ${amount.toLocaleString()} (${percentage.toFixed(1)}%)`}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* 상세 내역 리스트 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-2">
+                {sortedCategories.map(([cat, amount]) => {
+                  const percentage = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : 0;
+                  const dotColor = categoryColors[cat]?.split(' ')[1] || 'text-slate-400';
+                  return (
+                    <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/50 rounded-xl text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${dotColor.replace('text-', 'bg-')}`} />
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{cat}</span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">({percentage}%)</span>
+                      </div>
+                      <span className="font-bold text-slate-900 dark:text-white">₩ {amount.toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 입력/수정 폼 & 랭킹 그리드 */}
