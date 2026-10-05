@@ -15,9 +15,7 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 // Supabase 클라이언트 초기화
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { experimental: { passkey: true } },
-});
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /**
  * 월별 리포트 컴포넌트 (모달용)
@@ -157,7 +155,8 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [passkeyState, setPasskeyState] = useState('idle');
+  const [isRecoveringPin, setIsRecoveringPin] = useState(false);
+  const [needsAccountSetup, setNeedsAccountSetup] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
@@ -236,8 +235,9 @@ export default function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      setIsRecoveringPin(event === 'PASSWORD_RECOVERY');
       setLoading(false);
     });
 
@@ -252,16 +252,12 @@ export default function App() {
 
   useEffect(() => {
     if (!session) {
-      setPasskeyState('idle');
+      setNeedsAccountSetup(false);
       return;
     }
-
-    let cancelled = false;
-    supabase.auth.passkey.list().then(({ data, error }) => {
-      if (!cancelled) setPasskeyState(!error && data?.length === 0 ? 'setup' : 'ready');
-    });
-    return () => { cancelled = true; };
-  }, [session?.user.id]);
+    supabase.from('user_profiles').select('user_id').eq('user_id', session.user.id).maybeSingle()
+      .then(({ data, error }) => setNeedsAccountSetup(!error && !data));
+  }, [session]);
 
   const initAppData = async () => {
     await fetchInitialBalance();
@@ -533,7 +529,8 @@ export default function App() {
   }
 
   if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
-  if (passkeyState === 'setup') return <PasskeySetup onComplete={() => setPasskeyState('ready')} />;
+  if (isRecoveringPin) return <PinReset onComplete={() => setIsRecoveringPin(false)} />;
+  if (needsAccountSetup) return <AccountSetup onComplete={() => setNeedsAccountSetup(false)} />;
 
   // 전체 거래 내역 기반 총 순수익 계산 및 초기 통장 잔액 반영
   const totalIncomeAll = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -1446,16 +1443,21 @@ export default function App() {
   );
 }
 
-function PasskeySetup({ onComplete }) {
+function PinReset({ onComplete }) {
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [pin, setPin] = useState('');
+  const [message, setMessage] = useState('');
 
-  const register = async () => {
+  const reset = async (event) => {
+    event.preventDefault();
+    if (!/^\d{4}$/.test(pin)) {
+      setMessage('PIN은 숫자 4자리로 입력해주세요.');
+      return;
+    }
     setLoading(true);
-    setErrorMessage('');
-    const { error } = await supabase.auth.registerPasskey();
+    const { error } = await supabase.auth.updateUser({ password: pin });
     setLoading(false);
-    if (error) setErrorMessage(error.message);
+    if (error) setMessage(error.message);
     else onComplete();
   };
 
@@ -1463,42 +1465,91 @@ function PasskeySetup({ onComplete }) {
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4">
       <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5">
         <div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div>
-        <div className="space-y-2">
-          <h1 className="text-xl font-black text-slate-900 dark:text-white">패스키를 등록하세요</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">다음부터는 이메일과 비밀번호 없이 Face ID, 지문 또는 기기 잠금으로 로그인할 수 있어요.</p>
-        </div>
-        {errorMessage && <p className="text-xs text-rose-500">{errorMessage}</p>}
-        <button onClick={register} disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">
-          {loading ? '패스키 등록 중...' : '패스키 등록하기'}
-        </button>
+        <div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">PIN 재설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">새로운 숫자 4자리 PIN을 입력하세요.</p></div>
+        <form onSubmit={reset} className="space-y-3">
+          <input type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="새 PIN 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+          {message && <p className="text-xs text-rose-500">{message}</p>}
+          <button disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">{loading ? '저장 중...' : '새 PIN 저장'}</button>
+        </form>
       </div>
     </div>
   );
 }
 
-// 매직링크 및 패스키 로그인 컴포넌트
+function AccountSetup({ onComplete }) {
+  const [username, setUsername] = useState('');
+  const [pin, setPin] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const save = async (event) => {
+    event.preventDefault();
+    const cleanUsername = username.trim().toLowerCase();
+    if (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{4}$/.test(pin)) {
+      setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 4자리로 입력해주세요.');
+      return;
+    }
+    setLoading(true);
+    const { error: userError } = await supabase.auth.updateUser({ password: pin, data: { username: cleanUsername } });
+    const { error: profileError } = userError ? { error: userError } : await supabase.from('user_profiles').insert({ user_id: (await supabase.auth.getUser()).data.user.id, username: cleanUsername });
+    setLoading(false);
+    if (profileError) setMessage(profileError.message);
+    else onComplete();
+  };
+
+  return <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4"><div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5"><div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div><div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">로그인 정보 설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">앞으로 사용할 아이디와 PIN을 정해주세요.</p></div><form onSubmit={save} className="space-y-3"><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="아이디" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /><input type="password" inputMode="numeric" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="PIN 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />{message && <p className="text-xs text-rose-500">{message}</p>}<button disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">{loading ? '저장 중...' : '설정 완료'}</button></form></div></div>;
+}
+
+// 최초 가입은 이메일 인증, 이후 로그인은 아이디와 PIN으로 처리한다.
 function AuthView({ theme, toggleTheme }) {
+  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const handleMagicLink = async (e) => {
+  const handleAuth = async (e) => {
     e.preventDefault();
+    const cleanUsername = username.trim().toLowerCase();
+    if (mode !== 'migrate' && (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{4}$/.test(pin))) {
+      setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 4자리로 입력해주세요.');
+      return;
+    }
     setLoading(true);
     setMessage('');
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setMessage(error ? error.message : '로그인 링크를 이메일로 보냈어요. 메일함에서 링크를 열어주세요.');
+    if (mode === 'migrate') {
+      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+      setMessage(error ? error.message : '이메일로 계정 전환 링크를 보냈어요.');
+    } else if (mode === 'signup') {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: pin,
+        options: { data: { username: cleanUsername }, emailRedirectTo: window.location.origin },
+      });
+      setMessage(error ? error.message : '인증 링크를 이메일로 보냈어요. 링크를 열면 가입이 완료됩니다.');
+    } else {
+      const { data, error } = await supabase.functions.invoke('login-with-id', {
+        body: { username: cleanUsername, pin },
+      });
+      if (error || !data?.access_token) {
+        setMessage('아이디 또는 PIN이 올바르지 않습니다.');
+      } else {
+        const { error: sessionError } = await supabase.auth.setSession(data);
+        if (sessionError) setMessage(sessionError.message);
+      }
+    }
     setLoading(false);
   };
 
-  const handlePasskeyLogin = async () => {
+  const sendResetLink = async () => {
+    if (!email) {
+      setMessage('PIN 재설정용 이메일을 입력해주세요.');
+      return;
+    }
     setLoading(true);
-    setMessage('');
-    const { error } = await supabase.auth.signInWithPasskey();
-    if (error) setMessage(error.message);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    setMessage(error ? error.message : 'PIN 재설정 링크를 이메일로 보냈어요.');
     setLoading(false);
   };
 
@@ -1520,31 +1571,33 @@ function AuthView({ theme, toggleTheme }) {
             <Wallet size={32} />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">스마트 가계부</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">이메일 링크로 시작하고, 다음부터는 패스키로 로그인하세요.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">가입은 이메일 인증으로, 로그인은 아이디와 PIN으로.</p>
         </div>
 
-        <form onSubmit={handleMagicLink} className="space-y-4">
-          <div>
-            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label>
+        <form onSubmit={handleAuth} className="space-y-4">
+          {(mode === 'signup' || mode === 'migrate') && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="example@email.com" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
+          {mode !== 'migrate' && <div>
+            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">아이디</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@email.com"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="공백 없는 3~20자"
               required
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
             />
-          </div>
+          </div>}
+          {mode !== 'migrate' && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">PIN</label><input type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="숫자 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
 
           <button type="submit" disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
-            {loading ? '처리 중...' : '이메일 링크 받기'}
+            {loading ? '처리 중...' : mode === 'signup' ? '이메일 인증하고 가입하기' : mode === 'migrate' ? '이메일로 전환 링크 받기' : '로그인'}
           </button>
         </form>
 
-        <div className="my-5 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />또는<span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" /></div>
-        <button onClick={handlePasskeyLogin} disabled={loading} className="w-full py-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">
-          패스키로 로그인
-        </button>
+        <div className="mt-5 flex items-center justify-between text-xs">
+          <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMessage(''); }} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{mode === 'login' ? '처음이신가요? 가입하기' : '이미 계정이 있나요? 로그인'}</button>
+          {mode === 'login' && <button onClick={sendResetLink} disabled={loading} className="text-slate-500 dark:text-slate-400 hover:underline">PIN을 잊으셨나요?</button>}
+        </div>
+        {mode === 'login' && <button onClick={() => { setMode('migrate'); setMessage(''); }} className="mt-3 w-full text-xs text-slate-500 dark:text-slate-400 hover:underline">기존 이메일 계정을 아이디 로그인으로 전환</button>}
         {message && <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">{message}</p>}
       </div>
     </div>
