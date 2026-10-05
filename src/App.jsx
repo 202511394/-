@@ -15,7 +15,9 @@ ChartJS.register(ArcElement, Tooltip, Legend);
 // Supabase 클라이언트 초기화
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { experimental: { passkey: true } },
+});
 
 /**
  * 월별 리포트 컴포넌트 (모달용)
@@ -155,6 +157,7 @@ function MonthlyReportModal({ transactions, currentDate, onClose }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [passkeyState, setPasskeyState] = useState('idle');
   const [transactions, setTransactions] = useState([]);
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
@@ -246,6 +249,19 @@ export default function App() {
       initAppData();
     }
   }, [session, hideRanking]);
+
+  useEffect(() => {
+    if (!session) {
+      setPasskeyState('idle');
+      return;
+    }
+
+    let cancelled = false;
+    supabase.auth.passkey.list().then(({ data, error }) => {
+      if (!cancelled) setPasskeyState(!error && data?.length === 0 ? 'setup' : 'ready');
+    });
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
 
   const initAppData = async () => {
     await fetchInitialBalance();
@@ -517,6 +533,7 @@ export default function App() {
   }
 
   if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
+  if (passkeyState === 'setup') return <PasskeySetup onComplete={() => setPasskeyState('ready')} />;
 
   // 전체 거래 내역 기반 총 순수익 계산 및 초기 통장 잔액 반영
   const totalIncomeAll = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -1429,25 +1446,59 @@ export default function App() {
   );
 }
 
-// 로그인 및 회원가입 컴포넌트
-function AuthView({ theme, toggleTheme }) {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+function PasskeySetup({ onComplete }) {
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleAuth = async (e) => {
+  const register = async () => {
+    setLoading(true);
+    setErrorMessage('');
+    const { error } = await supabase.auth.registerPasskey();
+    setLoading(false);
+    if (error) setErrorMessage(error.message);
+    else onComplete();
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4">
+      <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5">
+        <div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div>
+        <div className="space-y-2">
+          <h1 className="text-xl font-black text-slate-900 dark:text-white">패스키를 등록하세요</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">다음부터는 이메일과 비밀번호 없이 Face ID, 지문 또는 기기 잠금으로 로그인할 수 있어요.</p>
+        </div>
+        {errorMessage && <p className="text-xs text-rose-500">{errorMessage}</p>}
+        <button onClick={register} disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">
+          {loading ? '패스키 등록 중...' : '패스키 등록하기'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// 매직링크 및 패스키 로그인 컴포넌트
+function AuthView({ theme, toggleTheme }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const handleMagicLink = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setMessage('');
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setMessage(error ? error.message : '로그인 링크를 이메일로 보냈어요. 메일함에서 링크를 열어주세요.');
+    setLoading(false);
+  };
 
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) alert(error.message);
-      else alert('회원가입 확인 메일이 발송되었습니다. 메일함을 확인해주세요!');
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert(error.message);
-    }
+  const handlePasskeyLogin = async () => {
+    setLoading(true);
+    setMessage('');
+    const { error } = await supabase.auth.signInWithPasskey();
+    if (error) setMessage(error.message);
     setLoading(false);
   };
 
@@ -1469,45 +1520,32 @@ function AuthView({ theme, toggleTheme }) {
             <Wallet size={32} />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">스마트 가계부</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">시작하려면 로그인해주세요</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">이메일 링크로 시작하고, 다음부터는 패스키로 로그인하세요.</p>
         </div>
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="example@email.com"
-                required
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">비밀번호</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호를 입력하세요"
-                required
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-              />
-            </div>
+        <form onSubmit={handleMagicLink} className="space-y-4">
+          <div>
+            <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="example@email.com"
+              required
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+            />
           </div>
 
           <button type="submit" disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
-            {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인하거나 가입하기'}
+            {loading ? '처리 중...' : '이메일 링크 받기'}
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-            {isSignUp ? '이미 계정이 있으신가요? 로그인하기' : '계정이 없으신가요? 회원가입하기'}
-          </button>
-        </div>
+        <div className="my-5 flex items-center gap-3 text-xs text-slate-400"><span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />또는<span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" /></div>
+        <button onClick={handlePasskeyLogin} disabled={loading} className="w-full py-3.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">
+          패스키로 로그인
+        </button>
+        {message && <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">{message}</p>}
       </div>
     </div>
   );
