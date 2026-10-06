@@ -1440,8 +1440,8 @@ function PinReset({ onComplete }) {
 
   const reset = async (event) => {
     event.preventDefault();
-    if (!/^\d{4}$/.test(pin)) {
-      setMessage('PIN은 숫자 4자리로 입력해주세요.');
+    if (!/^\d{6}$/.test(pin)) {
+      setMessage('PIN은 숫자 6자리로 입력해주세요.');
       return;
     }
     setLoading(true);
@@ -1455,9 +1455,9 @@ function PinReset({ onComplete }) {
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4">
       <div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5">
         <div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div>
-        <div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">PIN 재설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">새로운 숫자 4자리 PIN을 입력하세요.</p></div>
+        <div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">PIN 재설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">새로운 숫자 6자리 PIN을 입력하세요.</p></div>
         <form onSubmit={reset} className="space-y-3">
-          <input type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="새 PIN 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
+          <input type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="새 PIN 6자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
           {message && <p className="text-xs text-rose-500">{message}</p>}
           <button disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">{loading ? '저장 중...' : '새 PIN 저장'}</button>
         </form>
@@ -1475,8 +1475,8 @@ function AccountSetup() {
   const save = async (event) => {
     event.preventDefault();
     const cleanUsername = username.trim().toLowerCase();
-    if (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{4}$/.test(pin)) {
-      setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 4자리로 입력해주세요.');
+    if (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{6}$/.test(pin)) {
+      setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 6자리로 입력해주세요.');
       return;
     }
     setLoading(true);
@@ -1487,7 +1487,7 @@ function AccountSetup() {
     else setMessage('설정이 완료되었습니다.');
   };
 
-  return <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4"><div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5"><div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div><div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">로그인 정보 설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">앞으로 사용할 아이디와 PIN을 정해주세요.</p></div><form onSubmit={save} className="space-y-3"><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="아이디" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /><input type="password" inputMode="numeric" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="PIN 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />{message && <p className="text-xs text-rose-500">{message}</p>}<button disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">{loading ? '저장 중...' : '설정 완료'}</button></form></div></div>;
+  return <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4"><div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5"><div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div><div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">로그인 정보 설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">앞으로 사용할 아이디와 PIN을 정해주세요.</p></div><form onSubmit={save} className="space-y-3"><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="아이디" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /><input type="password" inputMode="numeric" maxLength="6" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="PIN 6자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />{message && <p className="text-xs text-rose-500">{message}</p>}<button disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">{loading ? '저장 중...' : '설정 완료'}</button></form></div></div>;
 }
 
 // 최초 가입은 이메일 인증, 이후 로그인은 아이디와 PIN으로 처리한다.
@@ -1502,8 +1502,8 @@ function AuthView({ theme, toggleTheme }) {
   const handleAuth = async (e) => {
     e.preventDefault();
     const cleanUsername = username.trim().toLowerCase();
-    if (mode !== 'migrate' && (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{4}$/.test(pin))) {
-      setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 4자리로 입력해주세요.');
+    if (mode !== 'migrate' && (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{6}$/.test(pin))) {
+      setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 6자리로 입력해주세요.');
       return;
     }
     setLoading(true);
@@ -1576,7 +1576,7 @@ function AuthView({ theme, toggleTheme }) {
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
             />
           </div>}
-          {mode !== 'migrate' && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">PIN</label><input type="password" inputMode="numeric" pattern="[0-9]{4}" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="숫자 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
+          {mode !== 'migrate' && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">PIN</label><input type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="숫자 6자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
 
           <button type="submit" disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
             {loading ? '처리 중...' : mode === 'signup' ? '이메일 인증하고 가입하기' : mode === 'migrate' ? '이메일로 전환 링크 받기' : '로그인'}
