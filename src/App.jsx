@@ -1502,13 +1502,16 @@ function AuthView({ theme, toggleTheme }) {
   const handleAuth = async (e) => {
     e.preventDefault();
     const cleanUsername = username.trim().toLowerCase();
-    if (mode !== 'migrate' && (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{6}$/.test(pin))) {
+    if (!['migrate', 'reset'].includes(mode) && (!/^\S{3,20}$/.test(cleanUsername) || !/^\d{6}$/.test(pin))) {
       setMessage('아이디는 공백 없는 3~20자, PIN은 숫자 6자리로 입력해주세요.');
       return;
     }
     setLoading(true);
     setMessage('');
-    if (mode === 'migrate') {
+    if (mode === 'reset') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      setMessage(error ? error.message : 'PIN 재설정 링크를 이메일로 보냈어요.');
+    } else if (mode === 'migrate') {
       const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
       setMessage(error ? error.message : '이메일로 계정 전환 링크를 보냈어요.');
     } else if (mode === 'signup') {
@@ -1529,17 +1532,6 @@ function AuthView({ theme, toggleTheme }) {
         if (sessionError) setMessage(sessionError.message);
       }
     }
-    setLoading(false);
-  };
-
-  const sendResetLink = async () => {
-    if (!email) {
-      setMessage('PIN 재설정용 이메일을 입력해주세요.');
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-    setMessage(error ? error.message : 'PIN 재설정 링크를 이메일로 보냈어요.');
     setLoading(false);
   };
 
@@ -1565,8 +1557,8 @@ function AuthView({ theme, toggleTheme }) {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {(mode === 'signup' || mode === 'migrate') && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="example@email.com" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
-          {mode !== 'migrate' && <div>
+          {['signup', 'migrate', 'reset'].includes(mode) && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">이메일</label><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="example@email.com" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
+          {!['migrate', 'reset'].includes(mode) && <div>
             <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">아이디</label>
             <input
               value={username}
@@ -1576,16 +1568,16 @@ function AuthView({ theme, toggleTheme }) {
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
             />
           </div>}
-          {mode !== 'migrate' && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">PIN</label><input type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="숫자 6자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
+          {!['migrate', 'reset'].includes(mode) && <div><label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">PIN</label><input type="password" inputMode="numeric" pattern="[0-9]{6}" maxLength="6" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="숫자 6자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /></div>}
 
           <button type="submit" disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors shadow-lg shadow-indigo-600/30">
-            {loading ? '처리 중...' : mode === 'signup' ? '이메일 인증하고 가입하기' : mode === 'migrate' ? '이메일로 전환 링크 받기' : '로그인'}
+            {loading ? '처리 중...' : mode === 'signup' ? '이메일 인증하고 가입하기' : mode === 'migrate' ? '이메일로 전환 링크 받기' : mode === 'reset' ? 'PIN 재설정 링크 받기' : '로그인'}
           </button>
         </form>
 
         <div className="mt-5 flex items-center justify-between text-xs">
           <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMessage(''); }} className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{mode === 'login' ? '처음이신가요? 가입하기' : '이미 계정이 있나요? 로그인'}</button>
-          {mode === 'login' && <button onClick={sendResetLink} disabled={loading} className="text-slate-500 dark:text-slate-400 hover:underline">PIN을 잊으셨나요?</button>}
+          {mode === 'login' && <button onClick={() => { setMode('reset'); setMessage(''); }} disabled={loading} className="text-slate-500 dark:text-slate-400 hover:underline">PIN을 잊으셨나요?</button>}
         </div>
         {mode === 'login' && <button onClick={() => { setMode('migrate'); setMessage(''); }} className="mt-3 w-full text-xs text-slate-500 dark:text-slate-400 hover:underline">기존 이메일 계정을 아이디 로그인으로 전환</button>}
         {message && <p className="mt-4 text-center text-xs text-slate-500 dark:text-slate-400">{message}</p>}
