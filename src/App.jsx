@@ -538,6 +538,7 @@ export default function App() {
 
   const monthlyIncome = monthlyTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
   const monthlyExpense = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const monthlyRecurringTotal = recurringList.reduce((total, item) => total + Number(item.amount || 0), 0);
 
   // 이전 달과 비교할 수입·지출을 계산한다.
   const previousDate = new Date(year, month - 1, 1);
@@ -1008,13 +1009,14 @@ export default function App() {
 
         {/* 고정지출 관리 영역 */}
         <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <Repeat size={16} className="text-indigo-600 dark:text-indigo-400" /> 고정지출 관리 (월 정기 지출)
             </h3>
-            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
-              * 설정한 날짜가 지나면 자동으로 지출 내역에 반영됩니다.
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-rose-600 dark:text-rose-400">월 합계 ₩ {monthlyRecurringTotal.toLocaleString()}</span>
+              <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">* 설정한 날짜가 지나면 자동 반영됩니다.</span>
+            </div>
           </div>
 
           <form onSubmit={handleAddRecurring} className="grid grid-cols-1 sm:grid-cols-4 gap-2">
