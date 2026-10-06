@@ -156,7 +156,6 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRecoveringPin, setIsRecoveringPin] = useState(false);
-  const [needsAccountSetup, setNeedsAccountSetup] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [recurringList, setRecurringList] = useState([]);
   const [rankings, setRankings] = useState([]);
@@ -249,15 +248,6 @@ export default function App() {
       initAppData();
     }
   }, [session, hideRanking]);
-
-  useEffect(() => {
-    if (!session) {
-      setNeedsAccountSetup(false);
-      return;
-    }
-    supabase.from('user_profiles').select('user_id').eq('user_id', session.user.id).maybeSingle()
-      .then(({ data, error }) => setNeedsAccountSetup(!error && !data));
-  }, [session]);
 
   const initAppData = async () => {
     await fetchInitialBalance();
@@ -530,7 +520,7 @@ export default function App() {
 
   if (!session) return <AuthView theme={theme} toggleTheme={toggleTheme} />;
   if (isRecoveringPin) return <PinReset onComplete={() => setIsRecoveringPin(false)} />;
-  if (needsAccountSetup) return <AccountSetup onComplete={() => setNeedsAccountSetup(false)} />;
+  if (!session.user.user_metadata?.username) return <AccountSetup />;
 
   // 전체 거래 내역 기반 총 순수익 계산 및 초기 통장 잔액 반영
   const totalIncomeAll = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -1476,7 +1466,7 @@ function PinReset({ onComplete }) {
   );
 }
 
-function AccountSetup({ onComplete }) {
+function AccountSetup() {
   const [username, setUsername] = useState('');
   const [pin, setPin] = useState('');
   const [message, setMessage] = useState('');
@@ -1494,7 +1484,7 @@ function AccountSetup({ onComplete }) {
     const { error: profileError } = userError ? { error: userError } : await supabase.from('user_profiles').insert({ user_id: (await supabase.auth.getUser()).data.user.id, username: cleanUsername });
     setLoading(false);
     if (profileError) setMessage(profileError.message);
-    else onComplete();
+    else setMessage('설정이 완료되었습니다.');
   };
 
   return <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4"><div className="max-w-md w-full p-8 rounded-3xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-2xl text-center space-y-5"><div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-600 text-white flex items-center justify-center"><Wallet size={32} /></div><div className="space-y-2"><h1 className="text-xl font-black text-slate-900 dark:text-white">로그인 정보 설정</h1><p className="text-sm text-slate-500 dark:text-slate-400">앞으로 사용할 아이디와 PIN을 정해주세요.</p></div><form onSubmit={save} className="space-y-3"><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="아이디" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" /><input type="password" inputMode="numeric" maxLength="4" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))} placeholder="PIN 4자리" required className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-center text-lg tracking-[0.5em] text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />{message && <p className="text-xs text-rose-500">{message}</p>}<button disabled={loading} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm rounded-xl transition-colors disabled:opacity-50">{loading ? '저장 중...' : '설정 완료'}</button></form></div></div>;
